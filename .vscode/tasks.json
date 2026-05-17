@@ -1,0 +1,90 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "STM32: Configure",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "-B", "build/stm32",
+        "-S", "stm32",
+        "-DCMAKE_TOOLCHAIN_FILE=cmake/arm-none-eabi-gcc.cmake",
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-G", "Ninja"
+      ],
+      "group": "build",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "STM32: Build",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--build", "build/stm32", "--parallel"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "dependsOn": "STM32: Configure",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "STM32: Flash",
+      "type": "shell",
+      "command": "openocd",
+      "args": [
+        "-f", "interface/stlink.cfg",
+        "-f", "target/stm32n6x.cfg",
+        "-c", "program build/stm32/LingxiBL.elf verify reset exit"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "STM32: Clean",
+      "type": "shell",
+      "command": "rm",
+      "args": ["-rf", "build/stm32"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "ESP32: Build",
+      "type": "shell",
+      "command": "idf.py",
+      "args": ["-C", "esp32", "build"],
+      "group": "build",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "ESP32: Flash",
+      "type": "shell",
+      "command": "idf.py",
+      "args": ["-C", "esp32", "flash"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: cppcheck",
+      "type": "shell",
+      "command": "cppcheck",
+      "args": [
+        "--enable=all",
+        "--inline-suppr",
+        "--suppress=missingIncludeSystem",
+        "-I", "stm32/Core/Inc",
+        "-I", "stm32/Drivers/STM32N6xx_HAL_Driver/Inc",
+        "stm32/"
+      ],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: Run Unit Tests",
+      "type": "shell",
+      "command": "ctest",
+      "args": ["--test-dir", "build/stm32", "--output-on-failure"],
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

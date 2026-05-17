@@ -1,0 +1,2901 @@
+ARM GAS  /tmp/ccPd8bFT.s 			page 1
+
+
+   1              		.arch armv8.1-m.main
+   2              		.arch_extension dsp
+   3              		.arch_extension fp
+   4              		.arch_extension fp.dp
+   5              		.arch_extension mve
+   6              		.eabi_attribute 28, 1
+   7              		.eabi_attribute 20, 1
+   8              		.eabi_attribute 21, 1
+   9              		.eabi_attribute 23, 3
+  10              		.eabi_attribute 24, 1
+  11              		.eabi_attribute 25, 1
+  12              		.eabi_attribute 26, 1
+  13              		.eabi_attribute 30, 2
+  14              		.eabi_attribute 34, 1
+  15              		.eabi_attribute 38, 1
+  16              		.eabi_attribute 18, 4
+  17              		.file	"app_freertos.c"
+  18              		.text
+  19              	.Ltext0:
+  20              		.cfi_sections	.debug_frame
+  21              		.section	.text.vTaskCamera,"ax",%progbits
+  22              		.align	1
+  23              		.p2align 2,,3
+  24              		.global	vTaskCamera
+  25              		.arch armv8.1-m.main
+  26              		.arch_extension dsp
+  27              		.arch_extension fp
+  28              		.arch_extension fp.dp
+  29              		.arch_extension mve
+  30              		.syntax unified
+  31              		.thumb
+  32              		.thumb_func
+  33              		.fpu fpv5-d16
+  35              	vTaskCamera:
+  36              	.LVL0:
+  37              	.LFB811:
+  38              		.file 1 "App/src/app_freertos.c"
+   1:App/src/app_freertos.c **** /**
+   2:App/src/app_freertos.c ****   ******************************************************************************
+   3:App/src/app_freertos.c ****   * @file    app_freertos.c
+   4:App/src/app_freertos.c ****   * @brief   FreeRTOS 任务模型实现
+   5:App/src/app_freertos.c ****   * @author  Lingxi Team
+   6:App/src/app_freertos.c ****   * @version v3.2
+   7:App/src/app_freertos.c ****   * @date    2026-05-15
+   8:App/src/app_freertos.c ****   ******************************************************************************
+   9:App/src/app_freertos.c ****   * @attention
+  10:App/src/app_freertos.c ****   * - 7个任务: Camera, Inference, Comm, Sensor, Control, Logger, Diag
+  11:App/src/app_freertos.c ****   * - 使用队列、信号量、事件组进行任务间同步
+  12:App/src/app_freertos.c ****   * - 内存分配全部静态或从 FreeRTOS heap
+  13:App/src/app_freertos.c ****   ******************************************************************************
+  14:App/src/app_freertos.c ****   */
+  15:App/src/app_freertos.c **** 
+  16:App/src/app_freertos.c **** #include "app_freertos.h"
+  17:App/src/app_freertos.c **** #include "bsp_mipi_csi.h"
+  18:App/src/app_freertos.c **** #include "bsp_tof.h"
+  19:App/src/app_freertos.c **** #include "bsp_uwb.h"
+  20:App/src/app_freertos.c **** #include "bsp_sdio.h"
+ARM GAS  /tmp/ccPd8bFT.s 			page 2
+
+
+  21:App/src/app_freertos.c **** #include "app_npu.h"
+  22:App/src/app_freertos.c **** #include "app_fusion.h"
+  23:App/src/app_freertos.c **** #include "app_control.h"
+  24:App/src/app_freertos.c **** #include "FreeRTOS.h"
+  25:App/src/app_freertos.c **** #include "task.h"
+  26:App/src/app_freertos.c **** #include "queue.h"
+  27:App/src/app_freertos.c **** #include "semphr.h"
+  28:App/src/app_freertos.c **** #include "event_groups.h"
+  29:App/src/app_freertos.c **** 
+  30:App/src/app_freertos.c **** /* =============================================================================
+  31:App/src/app_freertos.c ****  * 全局同步原语
+  32:App/src/app_freertos.c ****  * ==========================================================================*/
+  33:App/src/app_freertos.c **** EventGroupHandle_t g_system_event_group = NULL;
+  34:App/src/app_freertos.c **** 
+  35:App/src/app_freertos.c **** static QueueHandle_t s_queue_cam_frames = NULL;
+  36:App/src/app_freertos.c **** static QueueHandle_t s_queue_infer_results = NULL;
+  37:App/src/app_freertos.c **** static QueueHandle_t s_queue_sensor_data = NULL;
+  38:App/src/app_freertos.c **** static QueueHandle_t s_queue_ctrl_cmds = NULL;
+  39:App/src/app_freertos.c **** 
+  40:App/src/app_freertos.c **** /* 日志/诊断队列 */
+  41:App/src/app_freertos.c **** static QueueHandle_t s_queue_log = NULL;
+  42:App/src/app_freertos.c **** 
+  43:App/src/app_freertos.c **** /* 任务句柄 (用于 vTaskDiag 采集堆栈水位) */
+  44:App/src/app_freertos.c **** TaskHandle_t xCameraTaskHandle = NULL;
+  45:App/src/app_freertos.c **** TaskHandle_t xInferenceTaskHandle = NULL;
+  46:App/src/app_freertos.c **** TaskHandle_t xCommTaskHandle = NULL;
+  47:App/src/app_freertos.c **** TaskHandle_t xSensorTaskHandle = NULL;
+  48:App/src/app_freertos.c **** TaskHandle_t xControlTaskHandle = NULL;
+  49:App/src/app_freertos.c **** TaskHandle_t xLoggerTaskHandle = NULL;
+  50:App/src/app_freertos.c **** TaskHandle_t xDiagTaskHandle = NULL;
+  51:App/src/app_freertos.c **** 
+  52:App/src/app_freertos.c **** static SemaphoreHandle_t s_mutex_npu = NULL;
+  53:App/src/app_freertos.c **** static SemaphoreHandle_t s_mutex_sdram = NULL;
+  54:App/src/app_freertos.c **** 
+  55:App/src/app_freertos.c **** /* =============================================================================
+  56:App/src/app_freertos.c ****  * 私有函数声明
+  57:App/src/app_freertos.c ****  * ==========================================================================*/
+  58:App/src/app_freertos.c **** static void system_event_group_init(void);
+  59:App/src/app_freertos.c **** static void queues_init(void);
+  60:App/src/app_freertos.c **** static void mutexes_init(void);
+  61:App/src/app_freertos.c **** 
+  62:App/src/app_freertos.c **** /* =============================================================================
+  63:App/src/app_freertos.c ****  * 任务实现
+  64:App/src/app_freertos.c ****  * ==========================================================================*/
+  65:App/src/app_freertos.c **** 
+  66:App/src/app_freertos.c **** /**
+  67:App/src/app_freertos.c ****  * @brief  摄像头采集任务
+  68:App/src/app_freertos.c ****  * @note   最高优先级, 周期性从 MIPI CSI-2 获取帧
+  69:App/src/app_freertos.c ****  */
+  70:App/src/app_freertos.c **** void vTaskCamera(void *pvParameters)
+  71:App/src/app_freertos.c **** {
+  39              		.loc 1 71 1 view -0
+  40              		.cfi_startproc
+  41              		@ Volatile: function does not return.
+  42              		@ args = 0, pretend = 0, frame = 8
+  43              		@ frame_needed = 0, uses_anonymous_args = 0
+  72:App/src/app_freertos.c ****     (void)pvParameters;
+ARM GAS  /tmp/ccPd8bFT.s 			page 3
+
+
+  44              		.loc 1 72 5 view .LVU1
+  73:App/src/app_freertos.c **** 
+  74:App/src/app_freertos.c ****     LX_DEBUG_PRINT("vTaskCamera started");
+  45              		.loc 1 74 5 view .LVU2
+  75:App/src/app_freertos.c **** 
+  76:App/src/app_freertos.c ****     /* 等待系统初始化完成 */
+  77:App/src/app_freertos.c ****     xEventGroupWaitBits(g_system_event_group, EVT_SYS_INIT_DONE,
+  46              		.loc 1 77 5 view .LVU3
+  47 0000 0123     		movs	r3, #1
+  48 0002 4FF0FF35 		mov	r5, #-1
+  71:App/src/app_freertos.c ****     (void)pvParameters;
+  49              		.loc 1 71 1 is_stmt 0 view .LVU4
+  50 0006 00B5     		push	{lr}
+  51              		.cfi_def_cfa_offset 4
+  52              		.cfi_offset 14, -4
+  53              		.loc 1 77 5 view .LVU5
+  54 0008 1149     		ldr	r1, .L10
+  71:App/src/app_freertos.c ****     (void)pvParameters;
+  55              		.loc 1 71 1 view .LVU6
+  56 000a 85B0     		sub	sp, sp, #20
+  57              		.cfi_def_cfa_offset 24
+  58              		.loc 1 77 5 view .LVU7
+  59 000c 0022     		movs	r2, #0
+  60 000e 0868     		ldr	r0, [r1]
+  61              	.LVL1:
+  62              		.loc 1 77 5 view .LVU8
+  63 0010 1946     		mov	r1, r3
+  64 0012 0095     		str	r5, [sp]
+  65 0014 FFF7FEFF 		bl	xEventGroupWaitBits
+  66              	.LVL2:
+  78:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+  79:App/src/app_freertos.c **** 
+  80:App/src/app_freertos.c ****     /* 启动摄像头 */
+  81:App/src/app_freertos.c ****     bsp_mipi_csi_start();
+  67              		.loc 1 81 5 is_stmt 1 view .LVU9
+  68 0018 FFF7FEFF 		bl	bsp_mipi_csi_start
+  69              	.LVL3:
+  82:App/src/app_freertos.c **** 
+  83:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+  70              		.loc 1 83 5 view .LVU10
+  71              		.loc 1 83 31 is_stmt 0 view .LVU11
+  72 001c FFF7FEFF 		bl	xTaskGetTickCount
+  73              	.LVL4:
+  74 0020 0C4C     		ldr	r4, .L10+4
+  75              		.loc 1 83 14 view .LVU12
+  76 0022 0290     		str	r0, [sp, #8]
+  77              	.L3:
+  84:App/src/app_freertos.c **** 
+  85:App/src/app_freertos.c ****     for (;;) {
+  78              		.loc 1 85 5 is_stmt 1 view .LVU13
+  79              	.LBB4:
+  86:App/src/app_freertos.c ****         /* 周期性延迟 */
+  87:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_CAMERA));
+  80              		.loc 1 87 9 view .LVU14
+  81              		.loc 1 87 9 view .LVU15
+  82 0024 1021     		movs	r1, #16
+  83 0026 02A8     		add	r0, sp, #8
+ARM GAS  /tmp/ccPd8bFT.s 			page 4
+
+
+  84 0028 FFF7FEFF 		bl	xTaskDelayUntil
+  85              	.LVL5:
+  86              		.loc 1 87 9 view .LVU16
+  88:App/src/app_freertos.c **** 
+  89:App/src/app_freertos.c ****         /* 获取帧 */
+  90:App/src/app_freertos.c ****         uint8_t *frame = bsp_mipi_csi_get_frame();
+  87              		.loc 1 90 9 view .LVU17
+  88              		.loc 1 90 26 is_stmt 0 view .LVU18
+  89 002c FFF7FEFF 		bl	bsp_mipi_csi_get_frame
+  90              	.LVL6:
+  91:App/src/app_freertos.c ****         if (frame == NULL) {
+  92:App/src/app_freertos.c ****             continue; /* 超时或错误 */
+  93:App/src/app_freertos.c ****         }
+  94:App/src/app_freertos.c **** 
+  95:App/src/app_freertos.c ****         /* 发送到推理队列 */
+  96:App/src/app_freertos.c ****         if (xQueueSend(s_queue_cam_frames, &frame, 0) != pdTRUE) {
+  91              		.loc 1 96 9 is_stmt 1 view .LVU19
+  90:App/src/app_freertos.c ****         if (frame == NULL) {
+  92              		.loc 1 90 18 is_stmt 0 view .LVU20
+  93 0030 0390     		str	r0, [sp, #12]
+  91:App/src/app_freertos.c ****         if (frame == NULL) {
+  94              		.loc 1 91 9 is_stmt 1 view .LVU21
+  91:App/src/app_freertos.c ****         if (frame == NULL) {
+  95              		.loc 1 91 12 is_stmt 0 view .LVU22
+  96 0032 0028     		cmp	r0, #0
+  97 0034 F6D0     		beq	.L3
+  98              		.loc 1 96 13 view .LVU23
+  99 0036 0023     		movs	r3, #0
+ 100 0038 2068     		ldr	r0, [r4]
+ 101 003a 1A46     		mov	r2, r3
+ 102 003c 03A9     		add	r1, sp, #12
+ 103 003e FFF7FEFF 		bl	xQueueGenericSend
+ 104              	.LVL7:
+  97:App/src/app_freertos.c ****             /* 队列满, 释放帧 */
+  98:App/src/app_freertos.c ****             bsp_mipi_csi_release_frame(frame);
+ 105              		.loc 1 98 13 is_stmt 1 view .LVU24
+  96:App/src/app_freertos.c ****             /* 队列满, 释放帧 */
+ 106              		.loc 1 96 12 is_stmt 0 view .LVU25
+ 107 0042 0128     		cmp	r0, #1
+ 108 0044 EED0     		beq	.L3
+ 109              		.loc 1 98 13 view .LVU26
+ 110 0046 0398     		ldr	r0, [sp, #12]
+ 111 0048 FFF7FEFF 		bl	bsp_mipi_csi_release_frame
+ 112              	.LVL8:
+  92:App/src/app_freertos.c ****         }
+ 113              		.loc 1 92 13 is_stmt 1 view .LVU27
+ 114 004c EAE7     		b	.L3
+ 115              	.L11:
+ 116 004e 00BF     		.align	2
+ 117              	.L10:
+ 118 0050 00000000 		.word	.LANCHOR0
+ 119 0054 00000000 		.word	.LANCHOR1
+ 120              	.LBE4:
+ 121              		.cfi_endproc
+ 122              	.LFE811:
+ 124              		.section	.text.vTaskLogger,"ax",%progbits
+ 125              		.align	1
+ARM GAS  /tmp/ccPd8bFT.s 			page 5
+
+
+ 126              		.p2align 2,,3
+ 127              		.global	vTaskLogger
+ 128              		.syntax unified
+ 129              		.thumb
+ 130              		.thumb_func
+ 131              		.fpu fpv5-d16
+ 133              	vTaskLogger:
+ 134              	.LVL9:
+ 135              	.LFB816:
+  99:App/src/app_freertos.c ****         }
+ 100:App/src/app_freertos.c ****     }
+ 101:App/src/app_freertos.c **** }
+ 102:App/src/app_freertos.c **** 
+ 103:App/src/app_freertos.c **** /**
+ 104:App/src/app_freertos.c ****  * @brief  NPU 推理任务
+ 105:App/src/app_freertos.c ****  * @note   从队列获取帧, 执行 NPU 推理, 输出结果
+ 106:App/src/app_freertos.c ****  */
+ 107:App/src/app_freertos.c **** void vTaskInference(void *pvParameters)
+ 108:App/src/app_freertos.c **** {
+ 109:App/src/app_freertos.c ****     (void)pvParameters;
+ 110:App/src/app_freertos.c **** 
+ 111:App/src/app_freertos.c ****     LX_DEBUG_PRINT("vTaskInference started");
+ 112:App/src/app_freertos.c **** 
+ 113:App/src/app_freertos.c ****     xEventGroupWaitBits(g_system_event_group, EVT_SYS_INIT_DONE,
+ 114:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 115:App/src/app_freertos.c **** 
+ 116:App/src/app_freertos.c ****     uint8_t *frame = NULL;
+ 117:App/src/app_freertos.c ****     npu_infer_result_t infer_result = {0};
+ 118:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 119:App/src/app_freertos.c **** 
+ 120:App/src/app_freertos.c ****     for (;;) {
+ 121:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_INFERENCE));
+ 122:App/src/app_freertos.c **** 
+ 123:App/src/app_freertos.c ****         /* 从队列获取帧 */
+ 124:App/src/app_freertos.c ****         if (xQueueReceive(s_queue_cam_frames, &frame, pdMS_TO_TICKS(50)) != pdTRUE) {
+ 125:App/src/app_freertos.c ****             continue; /* 无新帧 */
+ 126:App/src/app_freertos.c ****         }
+ 127:App/src/app_freertos.c **** 
+ 128:App/src/app_freertos.c ****         /* NPU 推理 (互斥访问) */
+ 129:App/src/app_freertos.c ****         if (xSemaphoreTake(s_mutex_npu, pdMS_TO_TICKS(100)) == pdTRUE) {
+ 130:App/src/app_freertos.c ****             /* 预处理 */
+ 131:App/src/app_freertos.c ****             app_npu_preprocess(frame, CAM_WIDTH, CAM_HEIGHT);
+ 132:App/src/app_freertos.c **** 
+ 133:App/src/app_freertos.c ****             /* 执行推理 */
+ 134:App/src/app_freertos.c ****             lingxi_err_t err = app_npu_run(&infer_result);
+ 135:App/src/app_freertos.c ****             if (err == LINGXI_OK) {
+ 136:App/src/app_freertos.c ****                 /* 发送推理结果 */
+ 137:App/src/app_freertos.c ****                 xQueueSend(s_queue_infer_results, &infer_result, 0);
+ 138:App/src/app_freertos.c **** 
+ 139:App/src/app_freertos.c ****                 /* 设置事件标志 */
+ 140:App/src/app_freertos.c ****                 if (infer_result.obstacle_detected) {
+ 141:App/src/app_freertos.c ****                     xEventGroupSetBits(g_system_event_group, EVT_OBSTACLE_DETECTED);
+ 142:App/src/app_freertos.c ****                 }
+ 143:App/src/app_freertos.c ****                 if (infer_result.edge_detected) {
+ 144:App/src/app_freertos.c ****                     xEventGroupSetBits(g_system_event_group, EVT_EDGE_DETECTED);
+ 145:App/src/app_freertos.c ****                 }
+ 146:App/src/app_freertos.c ****             }
+ARM GAS  /tmp/ccPd8bFT.s 			page 6
+
+
+ 147:App/src/app_freertos.c **** 
+ 148:App/src/app_freertos.c ****             xSemaphoreGive(s_mutex_npu);
+ 149:App/src/app_freertos.c ****         }
+ 150:App/src/app_freertos.c **** 
+ 151:App/src/app_freertos.c ****         /* 释放帧缓冲区 */
+ 152:App/src/app_freertos.c ****         bsp_mipi_csi_release_frame(frame);
+ 153:App/src/app_freertos.c ****     }
+ 154:App/src/app_freertos.c **** }
+ 155:App/src/app_freertos.c **** 
+ 156:App/src/app_freertos.c **** /**
+ 157:App/src/app_freertos.c ****  * @brief  通信任务
+ 158:App/src/app_freertos.c ****  * @note   从控制队列获取指令 + 日志数据, 经 SDIO 发送至 ESP32-C6
+ 159:App/src/app_freertos.c ****  *         不再直接消费推理/传感器队列 (由 vTaskControl 透传)
+ 160:App/src/app_freertos.c ****  */
+ 161:App/src/app_freertos.c **** void vTaskComm(void *pvParameters)
+ 162:App/src/app_freertos.c **** {
+ 163:App/src/app_freertos.c ****     (void)pvParameters;
+ 164:App/src/app_freertos.c **** 
+ 165:App/src/app_freertos.c ****     LX_DEBUG_PRINT("vTaskComm started");
+ 166:App/src/app_freertos.c **** 
+ 167:App/src/app_freertos.c ****     xEventGroupWaitBits(g_system_event_group, EVT_SYS_INIT_DONE,
+ 168:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 169:App/src/app_freertos.c **** 
+ 170:App/src/app_freertos.c ****     sdio_packet_t pkt = {0};
+ 171:App/src/app_freertos.c ****     control_cmd_t ctrl_cmd = {0};
+ 172:App/src/app_freertos.c ****     log_entry_t log_entry = {0};
+ 173:App/src/app_freertos.c **** 
+ 174:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 175:App/src/app_freertos.c **** 
+ 176:App/src/app_freertos.c ****     for (;;) {
+ 177:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_COMM));
+ 178:App/src/app_freertos.c **** 
+ 179:App/src/app_freertos.c ****         /* 1. 发送控制指令 (最高优先级) */
+ 180:App/src/app_freertos.c ****         if (xQueueReceive(s_queue_ctrl_cmds, &ctrl_cmd, 0) == pdTRUE) {
+ 181:App/src/app_freertos.c ****             pkt.magic = 0xA5;
+ 182:App/src/app_freertos.c ****             pkt.type = SDIO_PKT_CTRL_CMD;
+ 183:App/src/app_freertos.c ****             pkt.seq++;
+ 184:App/src/app_freertos.c ****             pkt.len = sizeof(control_cmd_t);
+ 185:App/src/app_freertos.c ****             memcpy(pkt.data, &ctrl_cmd, sizeof(control_cmd_t));
+ 186:App/src/app_freertos.c ****             bsp_sdio_send_packet(&pkt, 50);
+ 187:App/src/app_freertos.c ****         }
+ 188:App/src/app_freertos.c **** 
+ 189:App/src/app_freertos.c ****         /* 2. 发送日志/诊断数据 (低优先级, 剩余带宽) */
+ 190:App/src/app_freertos.c ****         if (s_queue_log != NULL &&
+ 191:App/src/app_freertos.c ****             xQueueReceive(s_queue_log, &log_entry, 0) == pdTRUE) {
+ 192:App/src/app_freertos.c ****             pkt.magic = 0xA5;
+ 193:App/src/app_freertos.c ****             pkt.type = SDIO_PKT_LOG;
+ 194:App/src/app_freertos.c ****             pkt.seq++;
+ 195:App/src/app_freertos.c ****             pkt.len = sizeof(log_entry_t);
+ 196:App/src/app_freertos.c ****             memcpy(pkt.data, &log_entry, sizeof(log_entry_t));
+ 197:App/src/app_freertos.c ****             bsp_sdio_send_packet(&pkt, 50);
+ 198:App/src/app_freertos.c ****         }
+ 199:App/src/app_freertos.c ****     }
+ 200:App/src/app_freertos.c **** }
+ 201:App/src/app_freertos.c **** 
+ 202:App/src/app_freertos.c **** /**
+ 203:App/src/app_freertos.c ****  * @brief  传感器任务
+ARM GAS  /tmp/ccPd8bFT.s 			page 7
+
+
+ 204:App/src/app_freertos.c ****  * @note   读取 ToF 和 UWB 数据, 执行传感器融合
+ 205:App/src/app_freertos.c ****  */
+ 206:App/src/app_freertos.c **** void vTaskSensor(void *pvParameters)
+ 207:App/src/app_freertos.c **** {
+ 208:App/src/app_freertos.c ****     (void)pvParameters;
+ 209:App/src/app_freertos.c **** 
+ 210:App/src/app_freertos.c ****     LX_DEBUG_PRINT("vTaskSensor started");
+ 211:App/src/app_freertos.c **** 
+ 212:App/src/app_freertos.c ****     xEventGroupWaitBits(g_system_event_group, EVT_SYS_INIT_DONE,
+ 213:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 214:App/src/app_freertos.c **** 
+ 215:App/src/app_freertos.c ****     tof_measurement_t tof_meas = {0};
+ 216:App/src/app_freertos.c ****     uwb_ranging_data_t uwb_data = {0};
+ 217:App/src/app_freertos.c ****     sensor_fusion_data_t fusion_data = {0};
+ 218:App/src/app_freertos.c **** 
+ 219:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 220:App/src/app_freertos.c **** 
+ 221:App/src/app_freertos.c ****     for (;;) {
+ 222:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_SENSOR));
+ 223:App/src/app_freertos.c **** 
+ 224:App/src/app_freertos.c ****         /* 读取 ToF */
+ 225:App/src/app_freertos.c ****         if (bsp_tof_get_measurement(&tof_meas) == LINGXI_OK) {
+ 226:App/src/app_freertos.c ****             fusion_data.tof_distance_mm = tof_meas.distance_mm;
+ 227:App/src/app_freertos.c ****             fusion_data.tof_valid = tof_meas.valid;
+ 228:App/src/app_freertos.c ****         }
+ 229:App/src/app_freertos.c **** 
+ 230:App/src/app_freertos.c ****         /* 读取 UWB */
+ 231:App/src/app_freertos.c ****         if (bsp_uwb_get_ranging_data(&uwb_data) == LINGXI_OK) {
+ 232:App/src/app_freertos.c ****             if (uwb_data.num_anchors > 0) {
+ 233:App/src/app_freertos.c ****                 fusion_data.uwb_distance_m = uwb_data.anchors[0].distance_m;
+ 234:App/src/app_freertos.c ****                 fusion_data.uwb_valid = uwb_data.anchors[0].valid;
+ 235:App/src/app_freertos.c ****             }
+ 236:App/src/app_freertos.c ****         }
+ 237:App/src/app_freertos.c **** 
+ 238:App/src/app_freertos.c ****         /* 传感器融合 */
+ 239:App/src/app_freertos.c ****         app_fusion_update(&fusion_data);
+ 240:App/src/app_freertos.c **** 
+ 241:App/src/app_freertos.c ****         /* 发送到通信队列 */
+ 242:App/src/app_freertos.c ****         xQueueSend(s_queue_sensor_data, &fusion_data, 0);
+ 243:App/src/app_freertos.c **** 
+ 244:App/src/app_freertos.c ****         /* 设置事件 */
+ 245:App/src/app_freertos.c ****         xEventGroupSetBits(g_system_event_group, EVT_SENSOR_DATA_READY);
+ 246:App/src/app_freertos.c ****     }
+ 247:App/src/app_freertos.c **** }
+ 248:App/src/app_freertos.c **** 
+ 249:App/src/app_freertos.c **** /**
+ 250:App/src/app_freertos.c ****  * @brief  主控逻辑任务
+ 251:App/src/app_freertos.c ****  * @note   避障决策、边缘识别、跟踪控制
+ 252:App/src/app_freertos.c ****  */
+ 253:App/src/app_freertos.c **** void vTaskControl(void *pvParameters)
+ 254:App/src/app_freertos.c **** {
+ 255:App/src/app_freertos.c ****     (void)pvParameters;
+ 256:App/src/app_freertos.c **** 
+ 257:App/src/app_freertos.c ****     LX_DEBUG_PRINT("vTaskControl started");
+ 258:App/src/app_freertos.c **** 
+ 259:App/src/app_freertos.c ****     xEventGroupWaitBits(g_system_event_group, EVT_SYS_INIT_DONE,
+ 260:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ARM GAS  /tmp/ccPd8bFT.s 			page 8
+
+
+ 261:App/src/app_freertos.c **** 
+ 262:App/src/app_freertos.c ****     control_state_t ctrl_state = {0};
+ 263:App/src/app_freertos.c ****     npu_infer_result_t infer_result = {0};
+ 264:App/src/app_freertos.c ****     sensor_fusion_data_t sensor_data = {0};
+ 265:App/src/app_freertos.c **** 
+ 266:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 267:App/src/app_freertos.c **** 
+ 268:App/src/app_freertos.c ****     for (;;) {
+ 269:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_CONTROL));
+ 270:App/src/app_freertos.c **** 
+ 271:App/src/app_freertos.c ****         /* 获取推理结果 (非阻塞) */
+ 272:App/src/app_freertos.c ****         xQueueReceive(s_queue_infer_results, &infer_result, 0);
+ 273:App/src/app_freertos.c **** 
+ 274:App/src/app_freertos.c ****         /* 获取传感器数据 (非阻塞) */
+ 275:App/src/app_freertos.c ****         xQueueReceive(s_queue_sensor_data, &sensor_data, 0);
+ 276:App/src/app_freertos.c **** 
+ 277:App/src/app_freertos.c ****         /* 执行控制逻辑 */
+ 278:App/src/app_freertos.c ****         app_control_update(&ctrl_state, &infer_result, &sensor_data);
+ 279:App/src/app_freertos.c **** 
+ 280:App/src/app_freertos.c ****         /* 打包控制指令 + 遥测透传 */
+ 281:App/src/app_freertos.c ****         control_cmd_t cmd = {0};
+ 282:App/src/app_freertos.c ****         cmd.cmd_type = ctrl_state.current_mode;
+ 283:App/src/app_freertos.c ****         cmd.param1 = ctrl_state.target_distance_mm;
+ 284:App/src/app_freertos.c ****         cmd.param2 = ctrl_state.target_heading_deg;
+ 285:App/src/app_freertos.c ****         cmd.param3 = ctrl_state.target_speed_mmps;
+ 286:App/src/app_freertos.c ****         cmd.emergency_stop = ctrl_state.emergency_stop;
+ 287:App/src/app_freertos.c ****         cmd.timestamp_ms = xTaskGetTickCount();
+ 288:App/src/app_freertos.c **** 
+ 289:App/src/app_freertos.c ****         /* 遥测透传: 将传感器/推理数据打包进指令, vTaskComm 直接发送 */
+ 290:App/src/app_freertos.c ****         cmd.fused_dist_mm = sensor_data.fused_distance_mm;
+ 291:App/src/app_freertos.c ****         cmd.confidence = sensor_data.confidence;
+ 292:App/src/app_freertos.c ****         cmd.obstacle_flag = infer_result.obstacle_detected;
+ 293:App/src/app_freertos.c ****         cmd.edge_flag = infer_result.edge_detected;
+ 294:App/src/app_freertos.c ****         cmd.track_flag = infer_result.track_target_valid;
+ 295:App/src/app_freertos.c ****         cmd.inference_time_us = infer_result.inference_time_us;
+ 296:App/src/app_freertos.c ****         cmd.free_heap_bytes = xPortGetFreeHeapSize();
+ 297:App/src/app_freertos.c **** 
+ 298:App/src/app_freertos.c ****         xQueueSend(s_queue_ctrl_cmds, &cmd, 0);
+ 299:App/src/app_freertos.c ****     }
+ 300:App/src/app_freertos.c **** }
+ 301:App/src/app_freertos.c **** 
+ 302:App/src/app_freertos.c **** /**
+ 303:App/src/app_freertos.c ****  * @brief  日志任务
+ 304:App/src/app_freertos.c ****  * @note   异步日志: 高优先级任务通过 s_queue_log 提交日志, 本任务负责实际�
+ 305:App/src/app_freertos.c ****  */
+ 306:App/src/app_freertos.c **** void vTaskLogger(void *pvParameters)
+ 307:App/src/app_freertos.c **** {
+ 136              		.loc 1 307 1 view -0
+ 137              		.cfi_startproc
+ 138              		@ Volatile: function does not return.
+ 139              		@ args = 0, pretend = 0, frame = 144
+ 140              		@ frame_needed = 0, uses_anonymous_args = 0
+ 308:App/src/app_freertos.c ****     (void)pvParameters;
+ 141              		.loc 1 308 5 view .LVU29
+ 309:App/src/app_freertos.c **** 
+ 310:App/src/app_freertos.c ****     LX_DEBUG_PRINT("vTaskLogger started");
+ 142              		.loc 1 310 5 view .LVU30
+ARM GAS  /tmp/ccPd8bFT.s 			page 9
+
+
+ 311:App/src/app_freertos.c **** 
+ 312:App/src/app_freertos.c ****     xEventGroupWaitBits(g_system_event_group, EVT_SYS_INIT_DONE,
+ 143              		.loc 1 312 5 view .LVU31
+ 144 0000 0123     		movs	r3, #1
+ 145 0002 4FF0FF35 		mov	r5, #-1
+ 307:App/src/app_freertos.c ****     (void)pvParameters;
+ 146              		.loc 1 307 1 is_stmt 0 view .LVU32
+ 147 0006 00B5     		push	{lr}
+ 148              		.cfi_def_cfa_offset 4
+ 149              		.cfi_offset 14, -4
+ 150              		.loc 1 312 5 view .LVU33
+ 151 0008 0E49     		ldr	r1, .L18
+ 307:App/src/app_freertos.c ****     (void)pvParameters;
+ 152              		.loc 1 307 1 view .LVU34
+ 153 000a A7B0     		sub	sp, sp, #156
+ 154              		.cfi_def_cfa_offset 160
+ 155              		.loc 1 312 5 view .LVU35
+ 156 000c 0868     		ldr	r0, [r1]
+ 157              	.LVL10:
+ 158              		.loc 1 312 5 view .LVU36
+ 159 000e 0022     		movs	r2, #0
+ 160 0010 1946     		mov	r1, r3
+ 161 0012 0095     		str	r5, [sp]
+ 162 0014 FFF7FEFF 		bl	xEventGroupWaitBits
+ 163              	.LVL11:
+ 313:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 314:App/src/app_freertos.c **** 
+ 315:App/src/app_freertos.c ****     log_entry_t entry = {0};
+ 164              		.loc 1 315 5 is_stmt 1 view .LVU37
+ 165              		.loc 1 315 17 is_stmt 0 view .LVU38
+ 166 0018 8622     		movs	r2, #134
+ 167 001a 0021     		movs	r1, #0
+ 168 001c 04A8     		add	r0, sp, #16
+ 169 001e FFF7FEFF 		bl	memset
+ 170              	.LVL12:
+ 316:App/src/app_freertos.c **** 
+ 317:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 171              		.loc 1 317 5 is_stmt 1 view .LVU39
+ 172              		.loc 1 317 31 is_stmt 0 view .LVU40
+ 173 0022 FFF7FEFF 		bl	xTaskGetTickCount
+ 174              	.LVL13:
+ 175 0026 084C     		ldr	r4, .L18+4
+ 176              		.loc 1 317 14 view .LVU41
+ 177 0028 0390     		str	r0, [sp, #12]
+ 178              	.L13:
+ 318:App/src/app_freertos.c **** 
+ 319:App/src/app_freertos.c ****     for (;;) {
+ 179              		.loc 1 319 5 is_stmt 1 view .LVU42
+ 320:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_LOGGER));
+ 180              		.loc 1 320 9 view .LVU43
+ 181              		.loc 1 320 9 view .LVU44
+ 182 002a 4FF47A71 		mov	r1, #1000
+ 183 002e 03A8     		add	r0, sp, #12
+ 184 0030 FFF7FEFF 		bl	xTaskDelayUntil
+ 185              	.LVL14:
+ 186              		.loc 1 320 9 view .LVU45
+ 321:App/src/app_freertos.c **** 
+ARM GAS  /tmp/ccPd8bFT.s 			page 10
+
+
+ 322:App/src/app_freertos.c ****         /* 消费日志队列, 通过 s_queue_log 发送至 vTaskComm */
+ 323:App/src/app_freertos.c ****         if (s_queue_log != NULL &&
+ 187              		.loc 1 323 9 view .LVU46
+ 188              		.loc 1 323 25 is_stmt 0 view .LVU47
+ 189 0034 2068     		ldr	r0, [r4]
+ 190              		.loc 1 323 12 view .LVU48
+ 191 0036 0028     		cmp	r0, #0
+ 192 0038 F7D0     		beq	.L13
+ 324:App/src/app_freertos.c ****             xQueueReceive(s_queue_log, &entry, 0) == pdTRUE) {
+ 193              		.loc 1 324 13 discriminator 1 view .LVU49
+ 194 003a 0022     		movs	r2, #0
+ 195 003c 04A9     		add	r1, sp, #16
+ 196 003e FFF7FEFF 		bl	xQueueReceive
+ 197              	.LVL15:
+ 198 0042 F2E7     		b	.L13
+ 199              	.L19:
+ 200              		.align	2
+ 201              	.L18:
+ 202 0044 00000000 		.word	.LANCHOR0
+ 203 0048 00000000 		.word	.LANCHOR2
+ 204              		.cfi_endproc
+ 205              	.LFE816:
+ 207              		.section	.text.vTaskInference,"ax",%progbits
+ 208              		.align	1
+ 209              		.p2align 2,,3
+ 210              		.global	vTaskInference
+ 211              		.syntax unified
+ 212              		.thumb
+ 213              		.thumb_func
+ 214              		.fpu fpv5-d16
+ 216              	vTaskInference:
+ 217              	.LVL16:
+ 218              	.LFB812:
+ 108:App/src/app_freertos.c ****     (void)pvParameters;
+ 219              		.loc 1 108 1 is_stmt 1 view -0
+ 220              		.cfi_startproc
+ 221              		@ args = 0, pretend = 0, frame = 192
+ 222              		@ frame_needed = 0, uses_anonymous_args = 0
+ 109:App/src/app_freertos.c **** 
+ 223              		.loc 1 109 5 view .LVU51
+ 111:App/src/app_freertos.c **** 
+ 224              		.loc 1 111 5 view .LVU52
+ 113:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 225              		.loc 1 113 5 view .LVU53
+ 226 0000 0123     		movs	r3, #1
+ 227 0002 4FF0FF3C 		mov	ip, #-1
+ 108:App/src/app_freertos.c ****     (void)pvParameters;
+ 228              		.loc 1 108 1 is_stmt 0 view .LVU54
+ 229 0006 F0B5     		push	{r4, r5, r6, r7, lr}
+ 230              		.cfi_def_cfa_offset 20
+ 231              		.cfi_offset 4, -20
+ 232              		.cfi_offset 5, -16
+ 233              		.cfi_offset 6, -12
+ 234              		.cfi_offset 7, -8
+ 235              		.cfi_offset 14, -4
+ 113:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 236              		.loc 1 113 5 view .LVU55
+ARM GAS  /tmp/ccPd8bFT.s 			page 11
+
+
+ 237 0008 294E     		ldr	r6, .L39
+ 108:App/src/app_freertos.c ****     (void)pvParameters;
+ 238              		.loc 1 108 1 view .LVU56
+ 239 000a B3B0     		sub	sp, sp, #204
+ 240              		.cfi_def_cfa_offset 224
+ 113:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 241              		.loc 1 113 5 view .LVU57
+ 242 000c 1946     		mov	r1, r3
+ 243 000e CDF800C0 		str	ip, [sp]
+ 244 0012 0022     		movs	r2, #0
+ 245 0014 3068     		ldr	r0, [r6]
+ 246              	.LVL17:
+ 113:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 247              		.loc 1 113 5 view .LVU58
+ 248 0016 FFF7FEFF 		bl	xEventGroupWaitBits
+ 249              	.LVL18:
+ 116:App/src/app_freertos.c ****     npu_infer_result_t infer_result = {0};
+ 250              		.loc 1 116 5 is_stmt 1 view .LVU59
+ 116:App/src/app_freertos.c ****     npu_infer_result_t infer_result = {0};
+ 251              		.loc 1 116 14 is_stmt 0 view .LVU60
+ 252 001a 0021     		movs	r1, #0
+ 117:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 253              		.loc 1 117 24 view .LVU61
+ 254 001c B822     		movs	r2, #184
+ 255 001e 04A8     		add	r0, sp, #16
+ 116:App/src/app_freertos.c ****     npu_infer_result_t infer_result = {0};
+ 256              		.loc 1 116 14 view .LVU62
+ 257 0020 0291     		str	r1, [sp, #8]
+ 117:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 258              		.loc 1 117 5 is_stmt 1 view .LVU63
+ 117:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 259              		.loc 1 117 24 is_stmt 0 view .LVU64
+ 260 0022 FFF7FEFF 		bl	memset
+ 261              	.LVL19:
+ 118:App/src/app_freertos.c **** 
+ 262              		.loc 1 118 5 is_stmt 1 view .LVU65
+ 118:App/src/app_freertos.c **** 
+ 263              		.loc 1 118 31 is_stmt 0 view .LVU66
+ 264 0026 FFF7FEFF 		bl	xTaskGetTickCount
+ 265              	.LVL20:
+ 266 002a 224C     		ldr	r4, .L39+4
+ 267 002c 224D     		ldr	r5, .L39+8
+ 268 002e 234F     		ldr	r7, .L39+12
+ 118:App/src/app_freertos.c **** 
+ 269              		.loc 1 118 14 view .LVU67
+ 270 0030 0390     		str	r0, [sp, #12]
+ 271              	.L21:
+ 120:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_INFERENCE));
+ 272              		.loc 1 120 5 is_stmt 1 view .LVU68
+ 121:App/src/app_freertos.c **** 
+ 273              		.loc 1 121 9 view .LVU69
+ 121:App/src/app_freertos.c **** 
+ 274              		.loc 1 121 9 view .LVU70
+ 275 0032 2121     		movs	r1, #33
+ 276 0034 03A8     		add	r0, sp, #12
+ 277 0036 FFF7FEFF 		bl	xTaskDelayUntil
+ 278              	.LVL21:
+ARM GAS  /tmp/ccPd8bFT.s 			page 12
+
+
+ 121:App/src/app_freertos.c **** 
+ 279              		.loc 1 121 9 view .LVU71
+ 124:App/src/app_freertos.c ****             continue; /* 无新帧 */
+ 280              		.loc 1 124 9 view .LVU72
+ 124:App/src/app_freertos.c ****             continue; /* 无新帧 */
+ 281              		.loc 1 124 13 is_stmt 0 view .LVU73
+ 282 003a 3222     		movs	r2, #50
+ 283 003c 2068     		ldr	r0, [r4]
+ 284 003e 02A9     		add	r1, sp, #8
+ 285 0040 FFF7FEFF 		bl	xQueueReceive
+ 286              	.LVL22:
+ 124:App/src/app_freertos.c ****             continue; /* 无新帧 */
+ 287              		.loc 1 124 12 view .LVU74
+ 288 0044 0128     		cmp	r0, #1
+ 289 0046 F4D1     		bne	.L21
+ 129:App/src/app_freertos.c ****             /* 预处理 */
+ 290              		.loc 1 129 9 is_stmt 1 view .LVU75
+ 129:App/src/app_freertos.c ****             /* 预处理 */
+ 291              		.loc 1 129 13 is_stmt 0 view .LVU76
+ 292 0048 6421     		movs	r1, #100
+ 293 004a 2868     		ldr	r0, [r5]
+ 294 004c FFF7FEFF 		bl	xQueueSemaphoreTake
+ 295              	.LVL23:
+ 129:App/src/app_freertos.c ****             /* 预处理 */
+ 296              		.loc 1 129 12 view .LVU77
+ 297 0050 0128     		cmp	r0, #1
+ 298 0052 03D0     		beq	.L36
+ 299              	.L22:
+ 152:App/src/app_freertos.c ****     }
+ 300              		.loc 1 152 9 is_stmt 1 view .LVU78
+ 301 0054 0298     		ldr	r0, [sp, #8]
+ 302 0056 FFF7FEFF 		bl	bsp_mipi_csi_release_frame
+ 303              	.LVL24:
+ 304 005a EAE7     		b	.L21
+ 305              	.L36:
+ 306              	.LBB5:
+ 131:App/src/app_freertos.c **** 
+ 307              		.loc 1 131 13 view .LVU79
+ 308 005c 4FF4F072 		mov	r2, #480
+ 309 0060 4FF42071 		mov	r1, #640
+ 310 0064 0298     		ldr	r0, [sp, #8]
+ 311 0066 FFF7FEFF 		bl	app_npu_preprocess
+ 312              	.LVL25:
+ 134:App/src/app_freertos.c ****             if (err == LINGXI_OK) {
+ 313              		.loc 1 134 13 view .LVU80
+ 134:App/src/app_freertos.c ****             if (err == LINGXI_OK) {
+ 314              		.loc 1 134 32 is_stmt 0 view .LVU81
+ 315 006a 04A8     		add	r0, sp, #16
+ 316 006c FFF7FEFF 		bl	app_npu_run
+ 317              	.LVL26:
+ 135:App/src/app_freertos.c ****                 /* 发送推理结果 */
+ 318              		.loc 1 135 13 is_stmt 1 view .LVU82
+ 135:App/src/app_freertos.c ****                 /* 发送推理结果 */
+ 319              		.loc 1 135 16 is_stmt 0 view .LVU83
+ 320 0070 0346     		mov	r3, r0
+ 321 0072 30B1     		cbz	r0, .L37
+ 322              	.LVL27:
+ARM GAS  /tmp/ccPd8bFT.s 			page 13
+
+
+ 323              	.L24:
+ 148:App/src/app_freertos.c ****         }
+ 324              		.loc 1 148 13 is_stmt 1 view .LVU84
+ 325 0074 0023     		movs	r3, #0
+ 326 0076 2868     		ldr	r0, [r5]
+ 327 0078 1A46     		mov	r2, r3
+ 328 007a 1946     		mov	r1, r3
+ 329 007c FFF7FEFF 		bl	xQueueGenericSend
+ 330              	.LVL28:
+ 331 0080 E8E7     		b	.L22
+ 332              	.LVL29:
+ 333              	.L37:
+ 137:App/src/app_freertos.c **** 
+ 334              		.loc 1 137 17 view .LVU85
+ 335 0082 1A46     		mov	r2, r3
+ 336 0084 3868     		ldr	r0, [r7]
+ 337              	.LVL30:
+ 137:App/src/app_freertos.c **** 
+ 338              		.loc 1 137 17 is_stmt 0 view .LVU86
+ 339 0086 04A9     		add	r1, sp, #16
+ 340 0088 FFF7FEFF 		bl	xQueueGenericSend
+ 341              	.LVL31:
+ 140:App/src/app_freertos.c ****                     xEventGroupSetBits(g_system_event_group, EVT_OBSTACLE_DETECTED);
+ 342              		.loc 1 140 17 is_stmt 1 view .LVU87
+ 140:App/src/app_freertos.c ****                     xEventGroupSetBits(g_system_event_group, EVT_OBSTACLE_DETECTED);
+ 343              		.loc 1 140 20 is_stmt 0 view .LVU88
+ 344 008c 9DF81030 		ldrb	r3, [sp, #16]	@ zero_extendqisi2
+ 345 0090 43B9     		cbnz	r3, .L38
+ 346              	.L25:
+ 143:App/src/app_freertos.c ****                     xEventGroupSetBits(g_system_event_group, EVT_EDGE_DETECTED);
+ 347              		.loc 1 143 17 is_stmt 1 view .LVU89
+ 143:App/src/app_freertos.c ****                     xEventGroupSetBits(g_system_event_group, EVT_EDGE_DETECTED);
+ 348              		.loc 1 143 20 is_stmt 0 view .LVU90
+ 349 0092 9DF81130 		ldrb	r3, [sp, #17]	@ zero_extendqisi2
+ 350 0096 002B     		cmp	r3, #0
+ 351 0098 ECD0     		beq	.L24
+ 144:App/src/app_freertos.c ****                 }
+ 352              		.loc 1 144 21 is_stmt 1 view .LVU91
+ 353 009a 4021     		movs	r1, #64
+ 354 009c 3068     		ldr	r0, [r6]
+ 355 009e FFF7FEFF 		bl	xEventGroupSetBits
+ 356              	.LVL32:
+ 357 00a2 E7E7     		b	.L24
+ 358              	.L38:
+ 141:App/src/app_freertos.c ****                 }
+ 359              		.loc 1 141 21 view .LVU92
+ 360 00a4 2021     		movs	r1, #32
+ 361 00a6 3068     		ldr	r0, [r6]
+ 362 00a8 FFF7FEFF 		bl	xEventGroupSetBits
+ 363              	.LVL33:
+ 364 00ac F1E7     		b	.L25
+ 365              	.L40:
+ 366 00ae 00BF     		.align	2
+ 367              	.L39:
+ 368 00b0 00000000 		.word	.LANCHOR0
+ 369 00b4 00000000 		.word	.LANCHOR1
+ 370 00b8 00000000 		.word	.LANCHOR3
+ARM GAS  /tmp/ccPd8bFT.s 			page 14
+
+
+ 371 00bc 00000000 		.word	.LANCHOR4
+ 372              	.LBE5:
+ 373              		.cfi_endproc
+ 374              	.LFE812:
+ 376              		.section	.text.vTaskComm,"ax",%progbits
+ 377              		.align	1
+ 378              		.p2align 2,,3
+ 379              		.global	vTaskComm
+ 380              		.syntax unified
+ 381              		.thumb
+ 382              		.thumb_func
+ 383              		.fpu fpv5-d16
+ 385              	vTaskComm:
+ 386              	.LVL34:
+ 387              	.LFB813:
+ 162:App/src/app_freertos.c ****     (void)pvParameters;
+ 388              		.loc 1 162 1 view -0
+ 389              		.cfi_startproc
+ 390              		@ Volatile: function does not return.
+ 391              		@ args = 0, pretend = 0, frame = 1728
+ 392              		@ frame_needed = 0, uses_anonymous_args = 0
+ 163:App/src/app_freertos.c **** 
+ 393              		.loc 1 163 5 view .LVU94
+ 165:App/src/app_freertos.c **** 
+ 394              		.loc 1 165 5 view .LVU95
+ 167:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 395              		.loc 1 167 5 view .LVU96
+ 162:App/src/app_freertos.c ****     (void)pvParameters;
+ 396              		.loc 1 162 1 is_stmt 0 view .LVU97
+ 397 0000 80B5     		push	{r7, lr}
+ 398              		.cfi_def_cfa_offset 8
+ 399              		.cfi_offset 7, -8
+ 400              		.cfi_offset 14, -4
+ 167:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 401              		.loc 1 167 5 view .LVU98
+ 402 0002 0123     		movs	r3, #1
+ 403 0004 4FF0FF37 		mov	r7, #-1
+ 404 0008 3649     		ldr	r1, .L51
+ 162:App/src/app_freertos.c ****     (void)pvParameters;
+ 405              		.loc 1 162 1 view .LVU99
+ 406 000a ADF5D96D 		sub	sp, sp, #1736
+ 407              		.cfi_def_cfa_offset 1744
+ 167:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 408              		.loc 1 167 5 view .LVU100
+ 409 000e 0868     		ldr	r0, [r1]
+ 410              	.LVL35:
+ 167:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 411              		.loc 1 167 5 view .LVU101
+ 412 0010 0022     		movs	r2, #0
+ 413 0012 1946     		mov	r1, r3
+ 414 0014 0097     		str	r7, [sp]
+ 415 0016 FFF7FEFF 		bl	xEventGroupWaitBits
+ 416              	.LVL36:
+ 170:App/src/app_freertos.c ****     control_cmd_t ctrl_cmd = {0};
+ 417              		.loc 1 170 5 is_stmt 1 view .LVU102
+ 170:App/src/app_freertos.c ****     control_cmd_t ctrl_cmd = {0};
+ 418              		.loc 1 170 19 is_stmt 0 view .LVU103
+ARM GAS  /tmp/ccPd8bFT.s 			page 15
+
+
+ 419 001a 4FF4C162 		mov	r2, #1544
+ 420 001e 0021     		movs	r1, #0
+ 421 0020 30A8     		add	r0, sp, #192
+ 422 0022 FFF7FEFF 		bl	memset
+ 423              	.LVL37:
+ 171:App/src/app_freertos.c ****     log_entry_t log_entry = {0};
+ 424              		.loc 1 171 5 is_stmt 1 view .LVU104
+ 171:App/src/app_freertos.c ****     log_entry_t log_entry = {0};
+ 425              		.loc 1 171 19 is_stmt 0 view .LVU105
+ 426 0026 2C22     		movs	r2, #44
+ 427 0028 0021     		movs	r1, #0
+ 428 002a 03A8     		add	r0, sp, #12
+ 429 002c FFF7FEFF 		bl	memset
+ 430              	.LVL38:
+ 172:App/src/app_freertos.c **** 
+ 431              		.loc 1 172 5 is_stmt 1 view .LVU106
+ 172:App/src/app_freertos.c **** 
+ 432              		.loc 1 172 17 is_stmt 0 view .LVU107
+ 433 0030 8622     		movs	r2, #134
+ 434 0032 0021     		movs	r1, #0
+ 435 0034 0EA8     		add	r0, sp, #56
+ 436 0036 FFF7FEFF 		bl	memset
+ 437              	.LVL39:
+ 174:App/src/app_freertos.c **** 
+ 438              		.loc 1 174 5 is_stmt 1 view .LVU108
+ 174:App/src/app_freertos.c **** 
+ 439              		.loc 1 174 31 is_stmt 0 view .LVU109
+ 440 003a FFF7FEFF 		bl	xTaskGetTickCount
+ 441              	.LVL40:
+ 181:App/src/app_freertos.c ****             pkt.type = SDIO_PKT_CTRL_CMD;
+ 442              		.loc 1 181 23 view .LVU110
+ 443 003e A526     		movs	r6, #165
+ 444 0040 294D     		ldr	r5, .L51+4
+ 445 0042 2A4C     		ldr	r4, .L51+8
+ 174:App/src/app_freertos.c **** 
+ 446              		.loc 1 174 14 view .LVU111
+ 447 0044 0290     		str	r0, [sp, #8]
+ 448 0046 01E0     		b	.L43
+ 449              	.L42:
+ 190:App/src/app_freertos.c ****             xQueueReceive(s_queue_log, &log_entry, 0) == pdTRUE) {
+ 450              		.loc 1 190 9 is_stmt 1 view .LVU112
+ 190:App/src/app_freertos.c ****             xQueueReceive(s_queue_log, &log_entry, 0) == pdTRUE) {
+ 451              		.loc 1 190 25 is_stmt 0 view .LVU113
+ 452 0048 2068     		ldr	r0, [r4]
+ 190:App/src/app_freertos.c ****             xQueueReceive(s_queue_log, &log_entry, 0) == pdTRUE) {
+ 453              		.loc 1 190 12 view .LVU114
+ 454 004a 70BB     		cbnz	r0, .L50
+ 455              	.L43:
+ 176:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_COMM));
+ 456              		.loc 1 176 5 is_stmt 1 view .LVU115
+ 177:App/src/app_freertos.c **** 
+ 457              		.loc 1 177 9 view .LVU116
+ 177:App/src/app_freertos.c **** 
+ 458              		.loc 1 177 9 view .LVU117
+ 459 004c 0A21     		movs	r1, #10
+ 460 004e 02A8     		add	r0, sp, #8
+ 461 0050 FFF7FEFF 		bl	xTaskDelayUntil
+ARM GAS  /tmp/ccPd8bFT.s 			page 16
+
+
+ 462              	.LVL41:
+ 177:App/src/app_freertos.c **** 
+ 463              		.loc 1 177 9 view .LVU118
+ 180:App/src/app_freertos.c ****             pkt.magic = 0xA5;
+ 464              		.loc 1 180 9 view .LVU119
+ 180:App/src/app_freertos.c ****             pkt.magic = 0xA5;
+ 465              		.loc 1 180 13 is_stmt 0 view .LVU120
+ 466 0054 0022     		movs	r2, #0
+ 467 0056 2868     		ldr	r0, [r5]
+ 468 0058 03A9     		add	r1, sp, #12
+ 469 005a FFF7FEFF 		bl	xQueueReceive
+ 470              	.LVL42:
+ 180:App/src/app_freertos.c ****             pkt.magic = 0xA5;
+ 471              		.loc 1 180 12 view .LVU121
+ 472 005e 0128     		cmp	r0, #1
+ 473 0060 F2D1     		bne	.L42
+ 181:App/src/app_freertos.c ****             pkt.type = SDIO_PKT_CTRL_CMD;
+ 474              		.loc 1 181 13 is_stmt 1 view .LVU122
+ 182:App/src/app_freertos.c ****             pkt.seq++;
+ 475              		.loc 1 182 22 is_stmt 0 view .LVU123
+ 476 0062 0621     		movs	r1, #6
+ 184:App/src/app_freertos.c ****             memcpy(pkt.data, &ctrl_cmd, sizeof(control_cmd_t));
+ 477              		.loc 1 184 21 view .LVU124
+ 478 0064 2C22     		movs	r2, #44
+ 183:App/src/app_freertos.c ****             pkt.len = sizeof(control_cmd_t);
+ 479              		.loc 1 183 20 view .LVU125
+ 480 0066 BDF8C230 		ldrh	r3, [sp, #194]
+ 185:App/src/app_freertos.c ****             bsp_sdio_send_packet(&pkt, 50);
+ 481              		.loc 1 185 13 view .LVU126
+ 482 006a 0DF1C80C 		add	ip, sp, #200
+ 183:App/src/app_freertos.c ****             pkt.len = sizeof(control_cmd_t);
+ 483              		.loc 1 183 20 view .LVU127
+ 484 006e 0133     		adds	r3, r3, #1
+ 185:App/src/app_freertos.c ****             bsp_sdio_send_packet(&pkt, 50);
+ 485              		.loc 1 185 13 view .LVU128
+ 486 0070 0DF10C0E 		add	lr, sp, #12
+ 183:App/src/app_freertos.c ****             pkt.len = sizeof(control_cmd_t);
+ 487              		.loc 1 183 20 view .LVU129
+ 488 0074 ADF8C230 		strh	r3, [sp, #194]	@ movhi
+ 182:App/src/app_freertos.c ****             pkt.seq++;
+ 489              		.loc 1 182 22 view .LVU130
+ 490 0078 8DF8C110 		strb	r1, [sp, #193]
+ 184:App/src/app_freertos.c ****             memcpy(pkt.data, &ctrl_cmd, sizeof(control_cmd_t));
+ 491              		.loc 1 184 21 view .LVU131
+ 492 007c ADF8C420 		strh	r2, [sp, #196]	@ movhi
+ 185:App/src/app_freertos.c ****             bsp_sdio_send_packet(&pkt, 50);
+ 493              		.loc 1 185 13 view .LVU132
+ 494 0080 BEE80F00 		ldmia	lr!, {r0, r1, r2, r3}
+ 495 0084 ACE80F00 		stmia	ip!, {r0, r1, r2, r3}
+ 496 0088 BEE80F00 		ldmia	lr!, {r0, r1, r2, r3}
+ 497 008c ACE80F00 		stmia	ip!, {r0, r1, r2, r3}
+ 498 0090 9EE80700 		ldm	lr, {r0, r1, r2}
+ 499 0094 8CE80700 		stm	ip, {r0, r1, r2}
+ 186:App/src/app_freertos.c ****         }
+ 500              		.loc 1 186 13 view .LVU133
+ 501 0098 3221     		movs	r1, #50
+ 502 009a 30A8     		add	r0, sp, #192
+ARM GAS  /tmp/ccPd8bFT.s 			page 17
+
+
+ 181:App/src/app_freertos.c ****             pkt.type = SDIO_PKT_CTRL_CMD;
+ 503              		.loc 1 181 23 view .LVU134
+ 504 009c 8DF8C060 		strb	r6, [sp, #192]
+ 182:App/src/app_freertos.c ****             pkt.seq++;
+ 505              		.loc 1 182 13 is_stmt 1 view .LVU135
+ 183:App/src/app_freertos.c ****             pkt.len = sizeof(control_cmd_t);
+ 506              		.loc 1 183 13 view .LVU136
+ 184:App/src/app_freertos.c ****             memcpy(pkt.data, &ctrl_cmd, sizeof(control_cmd_t));
+ 507              		.loc 1 184 13 view .LVU137
+ 185:App/src/app_freertos.c ****             bsp_sdio_send_packet(&pkt, 50);
+ 508              		.loc 1 185 13 view .LVU138
+ 186:App/src/app_freertos.c ****         }
+ 509              		.loc 1 186 13 view .LVU139
+ 510 00a0 FFF7FEFF 		bl	bsp_sdio_send_packet
+ 511              	.LVL43:
+ 190:App/src/app_freertos.c ****             xQueueReceive(s_queue_log, &log_entry, 0) == pdTRUE) {
+ 512              		.loc 1 190 9 view .LVU140
+ 190:App/src/app_freertos.c ****             xQueueReceive(s_queue_log, &log_entry, 0) == pdTRUE) {
+ 513              		.loc 1 190 25 is_stmt 0 view .LVU141
+ 514 00a4 2068     		ldr	r0, [r4]
+ 190:App/src/app_freertos.c ****             xQueueReceive(s_queue_log, &log_entry, 0) == pdTRUE) {
+ 515              		.loc 1 190 12 view .LVU142
+ 516 00a6 0028     		cmp	r0, #0
+ 517 00a8 D0D0     		beq	.L43
+ 518              	.L50:
+ 191:App/src/app_freertos.c ****             pkt.magic = 0xA5;
+ 519              		.loc 1 191 13 discriminator 1 view .LVU143
+ 520 00aa 0022     		movs	r2, #0
+ 521 00ac 0EA9     		add	r1, sp, #56
+ 522 00ae FFF7FEFF 		bl	xQueueReceive
+ 523              	.LVL44:
+ 190:App/src/app_freertos.c ****             xQueueReceive(s_queue_log, &log_entry, 0) == pdTRUE) {
+ 524              		.loc 1 190 33 discriminator 1 view .LVU144
+ 525 00b2 0128     		cmp	r0, #1
+ 526 00b4 CAD1     		bne	.L43
+ 192:App/src/app_freertos.c ****             pkt.type = SDIO_PKT_LOG;
+ 527              		.loc 1 192 13 is_stmt 1 view .LVU145
+ 195:App/src/app_freertos.c ****             memcpy(pkt.data, &log_entry, sizeof(log_entry_t));
+ 528              		.loc 1 195 21 is_stmt 0 view .LVU146
+ 529 00b6 8622     		movs	r2, #134
+ 193:App/src/app_freertos.c ****             pkt.seq++;
+ 530              		.loc 1 193 22 view .LVU147
+ 531 00b8 4FF0070C 		mov	ip, #7
+ 194:App/src/app_freertos.c ****             pkt.len = sizeof(log_entry_t);
+ 532              		.loc 1 194 20 view .LVU148
+ 533 00bc BDF8C230 		ldrh	r3, [sp, #194]
+ 196:App/src/app_freertos.c ****             bsp_sdio_send_packet(&pkt, 50);
+ 534              		.loc 1 196 13 view .LVU149
+ 535 00c0 0EA9     		add	r1, sp, #56
+ 194:App/src/app_freertos.c ****             pkt.len = sizeof(log_entry_t);
+ 536              		.loc 1 194 20 view .LVU150
+ 537 00c2 0133     		adds	r3, r3, #1
+ 196:App/src/app_freertos.c ****             bsp_sdio_send_packet(&pkt, 50);
+ 538              		.loc 1 196 13 view .LVU151
+ 539 00c4 32A8     		add	r0, sp, #200
+ 192:App/src/app_freertos.c ****             pkt.type = SDIO_PKT_LOG;
+ 540              		.loc 1 192 23 view .LVU152
+ARM GAS  /tmp/ccPd8bFT.s 			page 18
+
+
+ 541 00c6 8DF8C060 		strb	r6, [sp, #192]
+ 193:App/src/app_freertos.c ****             pkt.seq++;
+ 542              		.loc 1 193 13 is_stmt 1 view .LVU153
+ 194:App/src/app_freertos.c ****             pkt.len = sizeof(log_entry_t);
+ 543              		.loc 1 194 20 is_stmt 0 view .LVU154
+ 544 00ca ADF8C230 		strh	r3, [sp, #194]	@ movhi
+ 193:App/src/app_freertos.c ****             pkt.seq++;
+ 545              		.loc 1 193 22 view .LVU155
+ 546 00ce 8DF8C1C0 		strb	ip, [sp, #193]
+ 194:App/src/app_freertos.c ****             pkt.len = sizeof(log_entry_t);
+ 547              		.loc 1 194 13 is_stmt 1 view .LVU156
+ 195:App/src/app_freertos.c ****             memcpy(pkt.data, &log_entry, sizeof(log_entry_t));
+ 548              		.loc 1 195 13 view .LVU157
+ 195:App/src/app_freertos.c ****             memcpy(pkt.data, &log_entry, sizeof(log_entry_t));
+ 549              		.loc 1 195 21 is_stmt 0 view .LVU158
+ 550 00d2 ADF8C420 		strh	r2, [sp, #196]	@ movhi
+ 196:App/src/app_freertos.c ****             bsp_sdio_send_packet(&pkt, 50);
+ 551              		.loc 1 196 13 is_stmt 1 view .LVU159
+ 552 00d6 FFF7FEFF 		bl	memcpy
+ 553              	.LVL45:
+ 197:App/src/app_freertos.c ****         }
+ 554              		.loc 1 197 13 view .LVU160
+ 555 00da 3221     		movs	r1, #50
+ 556 00dc 30A8     		add	r0, sp, #192
+ 557 00de FFF7FEFF 		bl	bsp_sdio_send_packet
+ 558              	.LVL46:
+ 559 00e2 B3E7     		b	.L43
+ 560              	.L52:
+ 561              		.align	2
+ 562              	.L51:
+ 563 00e4 00000000 		.word	.LANCHOR0
+ 564 00e8 00000000 		.word	.LANCHOR5
+ 565 00ec 00000000 		.word	.LANCHOR2
+ 566              		.cfi_endproc
+ 567              	.LFE813:
+ 569              		.section	.text.vTaskSensor,"ax",%progbits
+ 570              		.align	1
+ 571              		.p2align 2,,3
+ 572              		.global	vTaskSensor
+ 573              		.syntax unified
+ 574              		.thumb
+ 575              		.thumb_func
+ 576              		.fpu fpv5-d16
+ 578              	vTaskSensor:
+ 579              	.LVL47:
+ 580              	.LFB814:
+ 207:App/src/app_freertos.c ****     (void)pvParameters;
+ 581              		.loc 1 207 1 view -0
+ 582              		.cfi_startproc
+ 583              		@ Volatile: function does not return.
+ 584              		@ args = 0, pretend = 0, frame = 152
+ 585              		@ frame_needed = 0, uses_anonymous_args = 0
+ 208:App/src/app_freertos.c **** 
+ 586              		.loc 1 208 5 view .LVU162
+ 210:App/src/app_freertos.c **** 
+ 587              		.loc 1 210 5 view .LVU163
+ 212:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ARM GAS  /tmp/ccPd8bFT.s 			page 19
+
+
+ 588              		.loc 1 212 5 view .LVU164
+ 215:App/src/app_freertos.c ****     uwb_ranging_data_t uwb_data = {0};
+ 589              		.loc 1 215 23 is_stmt 0 view .LVU165
+ 590 0000 0026     		movs	r6, #0
+ 212:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 591              		.loc 1 212 5 view .LVU166
+ 592 0002 0123     		movs	r3, #1
+ 593 0004 4FF0FF31 		mov	r1, #-1
+ 207:App/src/app_freertos.c ****     (void)pvParameters;
+ 594              		.loc 1 207 1 view .LVU167
+ 595 0008 00B5     		push	{lr}
+ 596              		.cfi_def_cfa_offset 4
+ 597              		.cfi_offset 14, -4
+ 212:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 598              		.loc 1 212 5 view .LVU168
+ 599 000a 244C     		ldr	r4, .L61
+ 207:App/src/app_freertos.c ****     (void)pvParameters;
+ 600              		.loc 1 207 1 view .LVU169
+ 601 000c A9B0     		sub	sp, sp, #164
+ 602              		.cfi_def_cfa_offset 168
+ 212:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 603              		.loc 1 212 5 view .LVU170
+ 604 000e 3246     		mov	r2, r6
+ 605 0010 0091     		str	r1, [sp]
+ 606 0012 2068     		ldr	r0, [r4]
+ 607              	.LVL48:
+ 212:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 608              		.loc 1 212 5 view .LVU171
+ 609 0014 1946     		mov	r1, r3
+ 610 0016 FFF7FEFF 		bl	xEventGroupWaitBits
+ 611              	.LVL49:
+ 215:App/src/app_freertos.c ****     uwb_ranging_data_t uwb_data = {0};
+ 612              		.loc 1 215 5 is_stmt 1 view .LVU172
+ 216:App/src/app_freertos.c ****     sensor_fusion_data_t fusion_data = {0};
+ 613              		.loc 1 216 24 is_stmt 0 view .LVU173
+ 614 001a 6822     		movs	r2, #104
+ 615 001c 3146     		mov	r1, r6
+ 616 001e 0EA8     		add	r0, sp, #56
+ 215:App/src/app_freertos.c ****     uwb_ranging_data_t uwb_data = {0};
+ 617              		.loc 1 215 23 view .LVU174
+ 618 0020 CDE90366 		strd	r6, r6, [sp, #12]
+ 619 0024 CDE90566 		strd	r6, r6, [sp, #20]
+ 216:App/src/app_freertos.c ****     sensor_fusion_data_t fusion_data = {0};
+ 620              		.loc 1 216 5 is_stmt 1 view .LVU175
+ 216:App/src/app_freertos.c ****     sensor_fusion_data_t fusion_data = {0};
+ 621              		.loc 1 216 24 is_stmt 0 view .LVU176
+ 622 0028 FFF7FEFF 		bl	memset
+ 623              	.LVL50:
+ 217:App/src/app_freertos.c **** 
+ 624              		.loc 1 217 5 is_stmt 1 view .LVU177
+ 217:App/src/app_freertos.c **** 
+ 625              		.loc 1 217 26 is_stmt 0 view .LVU178
+ 626 002c CDE90766 		strd	r6, r6, [sp, #28]
+ 627 0030 CDE90966 		strd	r6, r6, [sp, #36]
+ 628 0034 CDE90B66 		strd	r6, r6, [sp, #44]
+ 629 0038 0D96     		str	r6, [sp, #52]
+ 219:App/src/app_freertos.c **** 
+ARM GAS  /tmp/ccPd8bFT.s 			page 20
+
+
+ 630              		.loc 1 219 5 is_stmt 1 view .LVU179
+ 219:App/src/app_freertos.c **** 
+ 631              		.loc 1 219 31 is_stmt 0 view .LVU180
+ 632 003a FFF7FEFF 		bl	xTaskGetTickCount
+ 633              	.LVL51:
+ 634 003e 184D     		ldr	r5, .L61+4
+ 219:App/src/app_freertos.c **** 
+ 635              		.loc 1 219 14 view .LVU181
+ 636 0040 0290     		str	r0, [sp, #8]
+ 637              	.L56:
+ 221:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_SENSOR));
+ 638              		.loc 1 221 5 is_stmt 1 view .LVU182
+ 222:App/src/app_freertos.c **** 
+ 639              		.loc 1 222 9 view .LVU183
+ 222:App/src/app_freertos.c **** 
+ 640              		.loc 1 222 9 view .LVU184
+ 641 0042 2121     		movs	r1, #33
+ 642 0044 02A8     		add	r0, sp, #8
+ 643 0046 FFF7FEFF 		bl	xTaskDelayUntil
+ 644              	.LVL52:
+ 222:App/src/app_freertos.c **** 
+ 645              		.loc 1 222 9 view .LVU185
+ 225:App/src/app_freertos.c ****             fusion_data.tof_distance_mm = tof_meas.distance_mm;
+ 646              		.loc 1 225 9 view .LVU186
+ 225:App/src/app_freertos.c ****             fusion_data.tof_distance_mm = tof_meas.distance_mm;
+ 647              		.loc 1 225 13 is_stmt 0 view .LVU187
+ 648 004a 03A8     		add	r0, sp, #12
+ 649 004c FFF7FEFF 		bl	bsp_tof_get_measurement
+ 650              	.LVL53:
+ 226:App/src/app_freertos.c ****             fusion_data.tof_valid = tof_meas.valid;
+ 651              		.loc 1 226 13 is_stmt 1 view .LVU188
+ 231:App/src/app_freertos.c ****             if (uwb_data.num_anchors > 0) {
+ 652              		.loc 1 231 9 view .LVU189
+ 225:App/src/app_freertos.c ****             fusion_data.tof_distance_mm = tof_meas.distance_mm;
+ 653              		.loc 1 225 13 is_stmt 0 view .LVU190
+ 654 0050 0346     		mov	r3, r0
+ 231:App/src/app_freertos.c ****             if (uwb_data.num_anchors > 0) {
+ 655              		.loc 1 231 13 view .LVU191
+ 656 0052 0EA8     		add	r0, sp, #56
+ 225:App/src/app_freertos.c ****             fusion_data.tof_distance_mm = tof_meas.distance_mm;
+ 657              		.loc 1 225 12 view .LVU192
+ 658 0054 3BB9     		cbnz	r3, .L54
+ 226:App/src/app_freertos.c ****             fusion_data.tof_valid = tof_meas.valid;
+ 659              		.loc 1 226 41 view .LVU193
+ 660 0056 BDF80C20 		ldrh	r2, [sp, #12]
+ 227:App/src/app_freertos.c ****         }
+ 661              		.loc 1 227 35 view .LVU194
+ 662 005a 9DF81830 		ldrb	r3, [sp, #24]	@ zero_extendqisi2
+ 226:App/src/app_freertos.c ****             fusion_data.tof_valid = tof_meas.valid;
+ 663              		.loc 1 226 41 view .LVU195
+ 664 005e ADF81C20 		strh	r2, [sp, #28]	@ movhi
+ 227:App/src/app_freertos.c ****         }
+ 665              		.loc 1 227 13 is_stmt 1 view .LVU196
+ 227:App/src/app_freertos.c ****         }
+ 666              		.loc 1 227 35 is_stmt 0 view .LVU197
+ 667 0062 8DF81E30 		strb	r3, [sp, #30]
+ 668              	.L54:
+ARM GAS  /tmp/ccPd8bFT.s 			page 21
+
+
+ 231:App/src/app_freertos.c ****             if (uwb_data.num_anchors > 0) {
+ 669              		.loc 1 231 13 view .LVU198
+ 670 0066 FFF7FEFF 		bl	bsp_uwb_get_ranging_data
+ 671              	.LVL54:
+ 232:App/src/app_freertos.c ****                 fusion_data.uwb_distance_m = uwb_data.anchors[0].distance_m;
+ 672              		.loc 1 232 13 is_stmt 1 view .LVU199
+ 239:App/src/app_freertos.c **** 
+ 673              		.loc 1 239 9 view .LVU200
+ 231:App/src/app_freertos.c ****             if (uwb_data.num_anchors > 0) {
+ 674              		.loc 1 231 13 is_stmt 0 view .LVU201
+ 675 006a 0346     		mov	r3, r0
+ 239:App/src/app_freertos.c **** 
+ 676              		.loc 1 239 9 view .LVU202
+ 677 006c 07A8     		add	r0, sp, #28
+ 231:App/src/app_freertos.c ****             if (uwb_data.num_anchors > 0) {
+ 678              		.loc 1 231 12 view .LVU203
+ 679 006e 43B9     		cbnz	r3, .L55
+ 233:App/src/app_freertos.c ****                 fusion_data.uwb_valid = uwb_data.anchors[0].valid;
+ 680              		.loc 1 233 17 is_stmt 1 view .LVU204
+ 232:App/src/app_freertos.c ****                 fusion_data.uwb_distance_m = uwb_data.anchors[0].distance_m;
+ 681              		.loc 1 232 16 is_stmt 0 view .LVU205
+ 682 0070 9DF89830 		ldrb	r3, [sp, #152]	@ zero_extendqisi2
+ 683 0074 2BB1     		cbz	r3, .L55
+ 233:App/src/app_freertos.c ****                 fusion_data.uwb_valid = uwb_data.anchors[0].valid;
+ 684              		.loc 1 233 44 view .LVU206
+ 685 0076 0F9A     		ldr	r2, [sp, #60]	@ float
+ 234:App/src/app_freertos.c ****             }
+ 686              		.loc 1 234 39 view .LVU207
+ 687 0078 9DF84C30 		ldrb	r3, [sp, #76]	@ zero_extendqisi2
+ 233:App/src/app_freertos.c ****                 fusion_data.uwb_valid = uwb_data.anchors[0].valid;
+ 688              		.loc 1 233 44 view .LVU208
+ 689 007c 0892     		str	r2, [sp, #32]	@ float
+ 234:App/src/app_freertos.c ****             }
+ 690              		.loc 1 234 17 is_stmt 1 view .LVU209
+ 234:App/src/app_freertos.c ****             }
+ 691              		.loc 1 234 39 is_stmt 0 view .LVU210
+ 692 007e 8DF82430 		strb	r3, [sp, #36]
+ 693              	.L55:
+ 239:App/src/app_freertos.c **** 
+ 694              		.loc 1 239 9 view .LVU211
+ 695 0082 FFF7FEFF 		bl	app_fusion_update
+ 696              	.LVL55:
+ 242:App/src/app_freertos.c **** 
+ 697              		.loc 1 242 9 is_stmt 1 view .LVU212
+ 698 0086 0023     		movs	r3, #0
+ 699 0088 07A9     		add	r1, sp, #28
+ 700 008a 1A46     		mov	r2, r3
+ 701 008c 2868     		ldr	r0, [r5]
+ 702 008e FFF7FEFF 		bl	xQueueGenericSend
+ 703              	.LVL56:
+ 245:App/src/app_freertos.c ****     }
+ 704              		.loc 1 245 9 view .LVU213
+ 705 0092 0421     		movs	r1, #4
+ 706 0094 2068     		ldr	r0, [r4]
+ 707 0096 FFF7FEFF 		bl	xEventGroupSetBits
+ 708              	.LVL57:
+ 221:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_SENSOR));
+ARM GAS  /tmp/ccPd8bFT.s 			page 22
+
+
+ 709              		.loc 1 221 11 view .LVU214
+ 222:App/src/app_freertos.c **** 
+ 710              		.loc 1 222 9 is_stmt 0 view .LVU215
+ 711 009a D2E7     		b	.L56
+ 712              	.L62:
+ 713              		.align	2
+ 714              	.L61:
+ 715 009c 00000000 		.word	.LANCHOR0
+ 716 00a0 00000000 		.word	.LANCHOR6
+ 717              		.cfi_endproc
+ 718              	.LFE814:
+ 720              		.section	.text.vTaskControl,"ax",%progbits
+ 721              		.align	1
+ 722              		.p2align 2,,3
+ 723              		.global	vTaskControl
+ 724              		.syntax unified
+ 725              		.thumb
+ 726              		.thumb_func
+ 727              		.fpu fpv5-d16
+ 729              	vTaskControl:
+ 730              	.LVL58:
+ 731              	.LFB815:
+ 254:App/src/app_freertos.c ****     (void)pvParameters;
+ 732              		.loc 1 254 1 is_stmt 1 view -0
+ 733              		.cfi_startproc
+ 734              		@ Volatile: function does not return.
+ 735              		@ args = 0, pretend = 0, frame = 280
+ 736              		@ frame_needed = 0, uses_anonymous_args = 0
+ 255:App/src/app_freertos.c **** 
+ 737              		.loc 1 255 5 view .LVU217
+ 257:App/src/app_freertos.c **** 
+ 738              		.loc 1 257 5 view .LVU218
+ 259:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 739              		.loc 1 259 5 view .LVU219
+ 254:App/src/app_freertos.c ****     (void)pvParameters;
+ 740              		.loc 1 254 1 is_stmt 0 view .LVU220
+ 741 0000 80B5     		push	{r7, lr}
+ 742              		.cfi_def_cfa_offset 8
+ 743              		.cfi_offset 7, -8
+ 744              		.cfi_offset 14, -4
+ 259:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 745              		.loc 1 259 5 view .LVU221
+ 746 0002 0123     		movs	r3, #1
+ 262:App/src/app_freertos.c ****     npu_infer_result_t infer_result = {0};
+ 747              		.loc 1 262 21 view .LVU222
+ 748 0004 0027     		movs	r7, #0
+ 259:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 749              		.loc 1 259 5 view .LVU223
+ 750 0006 4FF0FF31 		mov	r1, #-1
+ 751 000a 3548     		ldr	r0, .L66
+ 752              	.LVL59:
+ 254:App/src/app_freertos.c ****     (void)pvParameters;
+ 753              		.loc 1 254 1 view .LVU224
+ 754 000c C8B0     		sub	sp, sp, #288
+ 755              		.cfi_def_cfa_offset 296
+ 259:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 756              		.loc 1 259 5 view .LVU225
+ARM GAS  /tmp/ccPd8bFT.s 			page 23
+
+
+ 757 000e 3A46     		mov	r2, r7
+ 758 0010 0068     		ldr	r0, [r0]
+ 759 0012 0091     		str	r1, [sp]
+ 760 0014 1946     		mov	r1, r3
+ 761 0016 FFF7FEFF 		bl	xEventGroupWaitBits
+ 762              	.LVL60:
+ 262:App/src/app_freertos.c ****     npu_infer_result_t infer_result = {0};
+ 763              		.loc 1 262 5 is_stmt 1 view .LVU226
+ 263:App/src/app_freertos.c ****     sensor_fusion_data_t sensor_data = {0};
+ 764              		.loc 1 263 24 is_stmt 0 view .LVU227
+ 765 001a B822     		movs	r2, #184
+ 766 001c 3946     		mov	r1, r7
+ 767 001e 1AA8     		add	r0, sp, #104
+ 262:App/src/app_freertos.c ****     npu_infer_result_t infer_result = {0};
+ 768              		.loc 1 262 21 view .LVU228
+ 769 0020 CDE90377 		strd	r7, r7, [sp, #12]
+ 770 0024 CDE90577 		strd	r7, r7, [sp, #20]
+ 771 0028 0797     		str	r7, [sp, #28]
+ 263:App/src/app_freertos.c ****     sensor_fusion_data_t sensor_data = {0};
+ 772              		.loc 1 263 5 is_stmt 1 view .LVU229
+ 263:App/src/app_freertos.c ****     sensor_fusion_data_t sensor_data = {0};
+ 773              		.loc 1 263 24 is_stmt 0 view .LVU230
+ 774 002a FFF7FEFF 		bl	memset
+ 775              	.LVL61:
+ 264:App/src/app_freertos.c **** 
+ 776              		.loc 1 264 5 is_stmt 1 view .LVU231
+ 264:App/src/app_freertos.c **** 
+ 777              		.loc 1 264 26 is_stmt 0 view .LVU232
+ 778 002e CDE90877 		strd	r7, r7, [sp, #32]
+ 779 0032 CDE90A77 		strd	r7, r7, [sp, #40]
+ 780 0036 CDE90C77 		strd	r7, r7, [sp, #48]
+ 781 003a 0E97     		str	r7, [sp, #56]
+ 266:App/src/app_freertos.c **** 
+ 782              		.loc 1 266 5 is_stmt 1 view .LVU233
+ 266:App/src/app_freertos.c **** 
+ 783              		.loc 1 266 31 is_stmt 0 view .LVU234
+ 784 003c FFF7FEFF 		bl	xTaskGetTickCount
+ 785              	.LVL62:
+ 786 0040 284E     		ldr	r6, .L66+4
+ 787 0042 294D     		ldr	r5, .L66+8
+ 788 0044 294C     		ldr	r4, .L66+12
+ 266:App/src/app_freertos.c **** 
+ 789              		.loc 1 266 14 view .LVU235
+ 790 0046 0290     		str	r0, [sp, #8]
+ 791              	.L64:
+ 268:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_CONTROL));
+ 792              		.loc 1 268 5 is_stmt 1 discriminator 1 view .LVU236
+ 793              	.LBB6:
+ 269:App/src/app_freertos.c **** 
+ 794              		.loc 1 269 9 discriminator 1 view .LVU237
+ 269:App/src/app_freertos.c **** 
+ 795              		.loc 1 269 9 discriminator 1 view .LVU238
+ 796 0048 1421     		movs	r1, #20
+ 797 004a 02A8     		add	r0, sp, #8
+ 798 004c FFF7FEFF 		bl	xTaskDelayUntil
+ 799              	.LVL63:
+ 269:App/src/app_freertos.c **** 
+ARM GAS  /tmp/ccPd8bFT.s 			page 24
+
+
+ 800              		.loc 1 269 9 discriminator 1 view .LVU239
+ 272:App/src/app_freertos.c **** 
+ 801              		.loc 1 272 9 discriminator 1 view .LVU240
+ 802 0050 1AA9     		add	r1, sp, #104
+ 803 0052 0022     		movs	r2, #0
+ 804 0054 3068     		ldr	r0, [r6]
+ 805 0056 FFF7FEFF 		bl	xQueueReceive
+ 806              	.LVL64:
+ 275:App/src/app_freertos.c **** 
+ 807              		.loc 1 275 9 discriminator 1 view .LVU241
+ 808 005a 08A9     		add	r1, sp, #32
+ 809 005c 0022     		movs	r2, #0
+ 810 005e 2868     		ldr	r0, [r5]
+ 811 0060 FFF7FEFF 		bl	xQueueReceive
+ 812              	.LVL65:
+ 278:App/src/app_freertos.c **** 
+ 813              		.loc 1 278 9 discriminator 1 view .LVU242
+ 814 0064 08AA     		add	r2, sp, #32
+ 815 0066 1AA9     		add	r1, sp, #104
+ 816 0068 03A8     		add	r0, sp, #12
+ 817 006a FFF7FEFF 		bl	app_control_update
+ 818              	.LVL66:
+ 281:App/src/app_freertos.c ****         cmd.cmd_type = ctrl_state.current_mode;
+ 819              		.loc 1 281 9 discriminator 1 view .LVU243
+ 281:App/src/app_freertos.c ****         cmd.cmd_type = ctrl_state.current_mode;
+ 820              		.loc 1 281 23 is_stmt 0 discriminator 1 view .LVU244
+ 821 006e 2C22     		movs	r2, #44
+ 822 0070 0021     		movs	r1, #0
+ 823 0072 0FA8     		add	r0, sp, #60
+ 824 0074 FFF7FEFF 		bl	memset
+ 825              	.LVL67:
+ 282:App/src/app_freertos.c ****         cmd.param1 = ctrl_state.target_distance_mm;
+ 826              		.loc 1 282 9 is_stmt 1 discriminator 1 view .LVU245
+ 282:App/src/app_freertos.c ****         cmd.param1 = ctrl_state.target_distance_mm;
+ 827              		.loc 1 282 22 is_stmt 0 discriminator 1 view .LVU246
+ 828 0078 9DF80CC0 		ldrb	ip, [sp, #12]	@ zero_extendqisi2
+ 284:App/src/app_freertos.c ****         cmd.param3 = ctrl_state.target_speed_mmps;
+ 829              		.loc 1 284 32 discriminator 1 view .LVU247
+ 830 007c BDF91010 		ldrsh	r1, [sp, #16]
+ 285:App/src/app_freertos.c ****         cmd.emergency_stop = ctrl_state.emergency_stop;
+ 831              		.loc 1 285 32 discriminator 1 view .LVU248
+ 832 0080 BDF91220 		ldrsh	r2, [sp, #18]
+ 286:App/src/app_freertos.c ****         cmd.timestamp_ms = xTaskGetTickCount();
+ 833              		.loc 1 286 28 discriminator 1 view .LVU249
+ 834 0084 9DF81430 		ldrb	r3, [sp, #20]	@ zero_extendqisi2
+ 283:App/src/app_freertos.c ****         cmd.param2 = ctrl_state.target_heading_deg;
+ 835              		.loc 1 283 32 discriminator 1 view .LVU250
+ 836 0088 BDF80E00 		ldrh	r0, [sp, #14]
+ 282:App/src/app_freertos.c ****         cmd.param1 = ctrl_state.target_distance_mm;
+ 837              		.loc 1 282 22 discriminator 1 view .LVU251
+ 838 008c 8DF83CC0 		strb	ip, [sp, #60]
+ 283:App/src/app_freertos.c ****         cmd.param2 = ctrl_state.target_heading_deg;
+ 839              		.loc 1 283 9 is_stmt 1 discriminator 1 view .LVU252
+ 284:App/src/app_freertos.c ****         cmd.param3 = ctrl_state.target_speed_mmps;
+ 840              		.loc 1 284 32 is_stmt 0 discriminator 1 view .LVU253
+ 841 0090 CDE91001 		strd	r0, r1, [sp, #64]
+ 285:App/src/app_freertos.c ****         cmd.emergency_stop = ctrl_state.emergency_stop;
+ARM GAS  /tmp/ccPd8bFT.s 			page 25
+
+
+ 842              		.loc 1 285 9 is_stmt 1 discriminator 1 view .LVU254
+ 285:App/src/app_freertos.c ****         cmd.emergency_stop = ctrl_state.emergency_stop;
+ 843              		.loc 1 285 32 is_stmt 0 discriminator 1 view .LVU255
+ 844 0094 1292     		str	r2, [sp, #72]
+ 286:App/src/app_freertos.c ****         cmd.timestamp_ms = xTaskGetTickCount();
+ 845              		.loc 1 286 9 is_stmt 1 discriminator 1 view .LVU256
+ 286:App/src/app_freertos.c ****         cmd.timestamp_ms = xTaskGetTickCount();
+ 846              		.loc 1 286 28 is_stmt 0 discriminator 1 view .LVU257
+ 847 0096 8DF84C30 		strb	r3, [sp, #76]
+ 287:App/src/app_freertos.c **** 
+ 848              		.loc 1 287 9 is_stmt 1 discriminator 1 view .LVU258
+ 287:App/src/app_freertos.c **** 
+ 849              		.loc 1 287 28 is_stmt 0 discriminator 1 view .LVU259
+ 850 009a FFF7FEFF 		bl	xTaskGetTickCount
+ 851              	.LVL68:
+ 290:App/src/app_freertos.c ****         cmd.confidence = sensor_data.confidence;
+ 852              		.loc 1 290 27 discriminator 1 view .LVU260
+ 853 009e DDED0C7A 		vldr.32	s15, [sp, #48]
+ 854 00a2 FCEEE77A 		vcvt.u32.f32	s15, s15
+ 291:App/src/app_freertos.c ****         cmd.obstacle_flag = infer_result.obstacle_detected;
+ 855              		.loc 1 291 24 discriminator 1 view .LVU261
+ 856 00a6 0D9B     		ldr	r3, [sp, #52]	@ float
+ 294:App/src/app_freertos.c ****         cmd.inference_time_us = infer_result.inference_time_us;
+ 857              		.loc 1 294 38 discriminator 1 view .LVU262
+ 858 00a8 9DF86A10 		ldrb	r1, [sp, #106]	@ zero_extendqisi2
+ 291:App/src/app_freertos.c ****         cmd.obstacle_flag = infer_result.obstacle_detected;
+ 859              		.loc 1 291 24 discriminator 1 view .LVU263
+ 860 00ac 1693     		str	r3, [sp, #88]	@ float
+ 290:App/src/app_freertos.c ****         cmd.confidence = sensor_data.confidence;
+ 861              		.loc 1 290 27 discriminator 1 view .LVU264
+ 862 00ae 17EE903A 		vmov	r3, s15	@ int
+ 295:App/src/app_freertos.c ****         cmd.free_heap_bytes = xPortGetFreeHeapSize();
+ 863              		.loc 1 295 31 discriminator 1 view .LVU265
+ 864 00b2 469A     		ldr	r2, [sp, #280]
+ 292:App/src/app_freertos.c ****         cmd.edge_flag = infer_result.edge_detected;
+ 865              		.loc 1 292 27 discriminator 1 view .LVU266
+ 866 00b4 BDF868C0 		ldrh	ip, [sp, #104]
+ 294:App/src/app_freertos.c ****         cmd.inference_time_us = infer_result.inference_time_us;
+ 867              		.loc 1 294 24 discriminator 1 view .LVU267
+ 868 00b8 8DF85E10 		strb	r1, [sp, #94]
+ 295:App/src/app_freertos.c ****         cmd.free_heap_bytes = xPortGetFreeHeapSize();
+ 869              		.loc 1 295 31 discriminator 1 view .LVU268
+ 870 00bc ADF86020 		strh	r2, [sp, #96]	@ movhi
+ 290:App/src/app_freertos.c ****         cmd.confidence = sensor_data.confidence;
+ 871              		.loc 1 290 27 discriminator 1 view .LVU269
+ 872 00c0 ADF85430 		strh	r3, [sp, #84]	@ movhi
+ 292:App/src/app_freertos.c ****         cmd.edge_flag = infer_result.edge_detected;
+ 873              		.loc 1 292 27 discriminator 1 view .LVU270
+ 874 00c4 ADF85CC0 		strh	ip, [sp, #92]	@ movhi
+ 287:App/src/app_freertos.c **** 
+ 875              		.loc 1 287 26 discriminator 1 view .LVU271
+ 876 00c8 1490     		str	r0, [sp, #80]
+ 290:App/src/app_freertos.c ****         cmd.confidence = sensor_data.confidence;
+ 877              		.loc 1 290 9 is_stmt 1 discriminator 1 view .LVU272
+ 291:App/src/app_freertos.c ****         cmd.obstacle_flag = infer_result.obstacle_detected;
+ 878              		.loc 1 291 9 discriminator 1 view .LVU273
+ 292:App/src/app_freertos.c ****         cmd.edge_flag = infer_result.edge_detected;
+ARM GAS  /tmp/ccPd8bFT.s 			page 26
+
+
+ 879              		.loc 1 292 9 discriminator 1 view .LVU274
+ 293:App/src/app_freertos.c ****         cmd.track_flag = infer_result.track_target_valid;
+ 880              		.loc 1 293 9 discriminator 1 view .LVU275
+ 294:App/src/app_freertos.c ****         cmd.inference_time_us = infer_result.inference_time_us;
+ 881              		.loc 1 294 9 discriminator 1 view .LVU276
+ 295:App/src/app_freertos.c ****         cmd.free_heap_bytes = xPortGetFreeHeapSize();
+ 882              		.loc 1 295 9 discriminator 1 view .LVU277
+ 296:App/src/app_freertos.c **** 
+ 883              		.loc 1 296 9 discriminator 1 view .LVU278
+ 296:App/src/app_freertos.c **** 
+ 884              		.loc 1 296 31 is_stmt 0 discriminator 1 view .LVU279
+ 885 00ca FFF7FEFF 		bl	xPortGetFreeHeapSize
+ 886              	.LVL69:
+ 298:App/src/app_freertos.c ****     }
+ 887              		.loc 1 298 9 discriminator 1 view .LVU280
+ 888 00ce 0023     		movs	r3, #0
+ 296:App/src/app_freertos.c **** 
+ 889              		.loc 1 296 31 discriminator 1 view .LVU281
+ 890 00d0 0246     		mov	r2, r0
+ 298:App/src/app_freertos.c ****     }
+ 891              		.loc 1 298 9 discriminator 1 view .LVU282
+ 892 00d2 0FA9     		add	r1, sp, #60
+ 296:App/src/app_freertos.c **** 
+ 893              		.loc 1 296 29 discriminator 1 view .LVU283
+ 894 00d4 1992     		str	r2, [sp, #100]
+ 298:App/src/app_freertos.c ****     }
+ 895              		.loc 1 298 9 is_stmt 1 discriminator 1 view .LVU284
+ 896 00d6 2068     		ldr	r0, [r4]
+ 897 00d8 1A46     		mov	r2, r3
+ 898 00da FFF7FEFF 		bl	xQueueGenericSend
+ 899              	.LVL70:
+ 900              	.LBE6:
+ 268:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_CONTROL));
+ 901              		.loc 1 268 11 discriminator 1 view .LVU285
+ 902 00de B3E7     		b	.L64
+ 903              	.L67:
+ 904              		.align	2
+ 905              	.L66:
+ 906 00e0 00000000 		.word	.LANCHOR0
+ 907 00e4 00000000 		.word	.LANCHOR4
+ 908 00e8 00000000 		.word	.LANCHOR6
+ 909 00ec 00000000 		.word	.LANCHOR5
+ 910              		.cfi_endproc
+ 911              	.LFE815:
+ 913              		.section	.rodata.vTaskDiag.str1.4,"aMS",%progbits,1
+ 914              		.align	2
+ 915              	.LC0:
+ 916 0000 44494147 		.ascii	"DIAG:heap=%lu B,stack=[%u,%u,%u,%u,%u,%u,%u],tasks="
+ 916      3A686561 
+ 916      703D256C 
+ 916      7520422C 
+ 916      73746163 
+ 917 0033 257500   		.ascii	"%u\000"
+ 918              		.section	.text.vTaskDiag,"ax",%progbits
+ 919              		.align	1
+ 920              		.p2align 2,,3
+ 921              		.global	vTaskDiag
+ARM GAS  /tmp/ccPd8bFT.s 			page 27
+
+
+ 922              		.syntax unified
+ 923              		.thumb
+ 924              		.thumb_func
+ 925              		.fpu fpv5-d16
+ 927              	vTaskDiag:
+ 928              	.LVL71:
+ 929              	.LFB817:
+ 325:App/src/app_freertos.c ****             /* entry 已由生产者填充, vTaskComm 会读取并发送 */
+ 326:App/src/app_freertos.c ****             /* 此处无需额外操作 */
+ 327:App/src/app_freertos.c ****         }
+ 328:App/src/app_freertos.c ****     }
+ 329:App/src/app_freertos.c **** }
+ 330:App/src/app_freertos.c **** 
+ 331:App/src/app_freertos.c **** /**
+ 332:App/src/app_freertos.c ****  * @brief  诊断任务
+ 333:App/src/app_freertos.c ****  * @note   系统健康检查: 堆/栈/CPU/看门狗, 通过 s_queue_log 上报
+ 334:App/src/app_freertos.c ****  */
+ 335:App/src/app_freertos.c **** void vTaskDiag(void *pvParameters)
+ 336:App/src/app_freertos.c **** {
+ 930              		.loc 1 336 1 view -0
+ 931              		.cfi_startproc
+ 932              		@ args = 0, pretend = 0, frame = 200
+ 933              		@ frame_needed = 0, uses_anonymous_args = 0
+ 337:App/src/app_freertos.c ****     (void)pvParameters;
+ 934              		.loc 1 337 5 view .LVU287
+ 338:App/src/app_freertos.c **** 
+ 339:App/src/app_freertos.c ****     LX_DEBUG_PRINT("vTaskDiag started");
+ 935              		.loc 1 339 5 view .LVU288
+ 340:App/src/app_freertos.c **** 
+ 341:App/src/app_freertos.c ****     xEventGroupWaitBits(g_system_event_group, EVT_SYS_INIT_DONE,
+ 936              		.loc 1 341 5 view .LVU289
+ 336:App/src/app_freertos.c ****     (void)pvParameters;
+ 937              		.loc 1 336 1 is_stmt 0 view .LVU290
+ 938 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+ 939              		.cfi_def_cfa_offset 36
+ 940              		.cfi_offset 4, -36
+ 941              		.cfi_offset 5, -32
+ 942              		.cfi_offset 6, -28
+ 943              		.cfi_offset 7, -24
+ 944              		.cfi_offset 8, -20
+ 945              		.cfi_offset 9, -16
+ 946              		.cfi_offset 10, -12
+ 947              		.cfi_offset 11, -8
+ 948              		.cfi_offset 14, -4
+ 949              		.loc 1 341 5 view .LVU291
+ 950 0004 0123     		movs	r3, #1
+ 951 0006 4FF0FF34 		mov	r4, #-1
+ 952 000a 3E49     		ldr	r1, .L80
+ 336:App/src/app_freertos.c ****     (void)pvParameters;
+ 953              		.loc 1 336 1 view .LVU292
+ 954 000c BBB0     		sub	sp, sp, #236
+ 955              		.cfi_def_cfa_offset 272
+ 956              		.loc 1 341 5 view .LVU293
+ 957 000e 0868     		ldr	r0, [r1]
+ 958              	.LVL72:
+ 959              		.loc 1 341 5 view .LVU294
+ 960 0010 0022     		movs	r2, #0
+ARM GAS  /tmp/ccPd8bFT.s 			page 28
+
+
+ 961 0012 1946     		mov	r1, r3
+ 962 0014 0094     		str	r4, [sp]
+ 963 0016 FFF7FEFF 		bl	xEventGroupWaitBits
+ 964              	.LVL73:
+ 342:App/src/app_freertos.c ****                         pdFALSE, pdTRUE, portMAX_DELAY);
+ 343:App/src/app_freertos.c **** 
+ 344:App/src/app_freertos.c ****     /* 任务句柄数组 (用于采集堆栈水位) */
+ 345:App/src/app_freertos.c ****     const TaskHandle_t task_handles[7] = {
+ 965              		.loc 1 345 5 is_stmt 1 view .LVU295
+ 966              		.loc 1 345 24 is_stmt 0 view .LVU296
+ 967 001a 3B4B     		ldr	r3, .L80+4
+ 346:App/src/app_freertos.c ****         xCameraTaskHandle,
+ 347:App/src/app_freertos.c ****         xInferenceTaskHandle,
+ 348:App/src/app_freertos.c ****         xCommTaskHandle,
+ 349:App/src/app_freertos.c ****         xSensorTaskHandle,
+ 350:App/src/app_freertos.c ****         xControlTaskHandle,
+ 351:App/src/app_freertos.c ****         xLoggerTaskHandle,
+ 352:App/src/app_freertos.c ****         xDiagTaskHandle
+ 353:App/src/app_freertos.c ****     };
+ 354:App/src/app_freertos.c **** 
+ 355:App/src/app_freertos.c ****     diag_report_t report = {0};
+ 968              		.loc 1 355 19 view .LVU297
+ 969 001c 2022     		movs	r2, #32
+ 345:App/src/app_freertos.c ****         xCameraTaskHandle,
+ 970              		.loc 1 345 24 view .LVU298
+ 971 001e 1B68     		ldr	r3, [r3]
+ 972              		.loc 1 355 19 view .LVU299
+ 973 0020 0021     		movs	r1, #0
+ 345:App/src/app_freertos.c ****         xCameraTaskHandle,
+ 974              		.loc 1 345 24 view .LVU300
+ 975 0022 0A93     		str	r3, [sp, #40]
+ 976 0024 394B     		ldr	r3, .L80+8
+ 977              		.loc 1 355 19 view .LVU301
+ 978 0026 10A8     		add	r0, sp, #64
+ 345:App/src/app_freertos.c ****         xCameraTaskHandle,
+ 979              		.loc 1 345 24 view .LVU302
+ 980 0028 1B68     		ldr	r3, [r3]
+ 981 002a DFF8F880 		ldr	r8, .L80+32
+ 982 002e 0B93     		str	r3, [sp, #44]
+ 983 0030 374B     		ldr	r3, .L80+12
+ 984              	.LBB7:
+ 356:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 357:App/src/app_freertos.c **** 
+ 358:App/src/app_freertos.c ****     for (;;) {
+ 359:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_DIAG));
+ 360:App/src/app_freertos.c **** 
+ 361:App/src/app_freertos.c ****         report.timestamp_ms = xTaskGetTickCount();
+ 362:App/src/app_freertos.c ****         report.free_heap = xPortGetFreeHeapSize();
+ 363:App/src/app_freertos.c ****         report.uptime_ms = xTaskGetTickCount();
+ 364:App/src/app_freertos.c ****         report.active_tasks = uxTaskGetNumberOfTasks();
+ 365:App/src/app_freertos.c **** 
+ 366:App/src/app_freertos.c ****         /* 采集各任务堆栈水位 */
+ 367:App/src/app_freertos.c ****         for (int i = 0; i < 7; i++) {
+ 368:App/src/app_freertos.c ****             if (task_handles[i] != NULL) {
+ 369:App/src/app_freertos.c ****                 report.stack_watermarks[i] =
+ 370:App/src/app_freertos.c ****                     uxTaskGetStackHighWaterMark(task_handles[i]);
+ 371:App/src/app_freertos.c ****             }
+ARM GAS  /tmp/ccPd8bFT.s 			page 29
+
+
+ 372:App/src/app_freertos.c ****         }
+ 373:App/src/app_freertos.c **** 
+ 374:App/src/app_freertos.c ****         /* 通过日志队列发送诊断报告 */
+ 375:App/src/app_freertos.c ****         if (s_queue_log != NULL) {
+ 376:App/src/app_freertos.c ****             log_entry_t entry;
+ 377:App/src/app_freertos.c ****             entry.timestamp_ms = report.timestamp_ms;
+ 378:App/src/app_freertos.c ****             entry.level = 1;  /* INFO */
+ 379:App/src/app_freertos.c ****             entry.source_task = 6; /* 诊断任务ID */
+ 380:App/src/app_freertos.c ****             snprintf(entry.msg, sizeof(entry.msg),
+ 985              		.loc 1 380 13 view .LVU303
+ 986 0032 DFF8F4A0 		ldr	r10, .L80+36
+ 987              	.LBE7:
+ 345:App/src/app_freertos.c ****         xCameraTaskHandle,
+ 988              		.loc 1 345 24 view .LVU304
+ 989 0036 1B68     		ldr	r3, [r3]
+ 990 0038 0C93     		str	r3, [sp, #48]
+ 991 003a 364B     		ldr	r3, .L80+16
+ 992 003c 1B68     		ldr	r3, [r3]
+ 993 003e 0D93     		str	r3, [sp, #52]
+ 994 0040 354B     		ldr	r3, .L80+20
+ 995 0042 1B68     		ldr	r3, [r3]
+ 996 0044 0E93     		str	r3, [sp, #56]
+ 997 0046 354B     		ldr	r3, .L80+24
+ 998 0048 1B68     		ldr	r3, [r3]
+ 999 004a 0F93     		str	r3, [sp, #60]
+ 355:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 1000              		.loc 1 355 5 is_stmt 1 view .LVU305
+ 345:App/src/app_freertos.c ****         xCameraTaskHandle,
+ 1001              		.loc 1 345 24 is_stmt 0 view .LVU306
+ 1002 004c 344B     		ldr	r3, .L80+28
+ 1003 004e D3F80090 		ldr	r9, [r3]
+ 355:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 1004              		.loc 1 355 19 view .LVU307
+ 1005 0052 FFF7FEFF 		bl	memset
+ 1006              	.LVL74:
+ 356:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 1007              		.loc 1 356 5 is_stmt 1 view .LVU308
+ 356:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 1008              		.loc 1 356 31 is_stmt 0 view .LVU309
+ 1009 0056 FFF7FEFF 		bl	xTaskGetTickCount
+ 1010              	.LVL75:
+ 356:App/src/app_freertos.c ****     uint32_t last_wake_time = xTaskGetTickCount();
+ 1011              		.loc 1 356 14 view .LVU310
+ 1012 005a 0890     		str	r0, [sp, #32]
+ 1013              	.LVL76:
+ 1014              	.L72:
+ 358:App/src/app_freertos.c ****         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_DIAG));
+ 1015              		.loc 1 358 5 is_stmt 1 view .LVU311
+ 359:App/src/app_freertos.c **** 
+ 1016              		.loc 1 359 9 view .LVU312
+ 359:App/src/app_freertos.c **** 
+ 1017              		.loc 1 359 9 view .LVU313
+ 1018 005c 41F28831 		movw	r1, #5000
+ 1019 0060 08A8     		add	r0, sp, #32
+ 1020 0062 FFF7FEFF 		bl	xTaskDelayUntil
+ 1021              	.LVL77:
+ 359:App/src/app_freertos.c **** 
+ARM GAS  /tmp/ccPd8bFT.s 			page 30
+
+
+ 1022              		.loc 1 359 9 view .LVU314
+ 361:App/src/app_freertos.c ****         report.free_heap = xPortGetFreeHeapSize();
+ 1023              		.loc 1 361 9 view .LVU315
+ 361:App/src/app_freertos.c ****         report.free_heap = xPortGetFreeHeapSize();
+ 1024              		.loc 1 361 31 is_stmt 0 view .LVU316
+ 1025 0066 FFF7FEFF 		bl	xTaskGetTickCount
+ 1026              	.LVL78:
+ 1027 006a 0646     		mov	r6, r0
+ 1028              	.LVL79:
+ 362:App/src/app_freertos.c ****         report.uptime_ms = xTaskGetTickCount();
+ 1029              		.loc 1 362 9 is_stmt 1 view .LVU317
+ 362:App/src/app_freertos.c ****         report.uptime_ms = xTaskGetTickCount();
+ 1030              		.loc 1 362 28 is_stmt 0 view .LVU318
+ 1031 006c FFF7FEFF 		bl	xPortGetFreeHeapSize
+ 1032              	.LVL80:
+ 362:App/src/app_freertos.c ****         report.uptime_ms = xTaskGetTickCount();
+ 1033              		.loc 1 362 28 view .LVU319
+ 1034 0070 0746     		mov	r7, r0
+ 1035              	.LVL81:
+ 363:App/src/app_freertos.c ****         report.active_tasks = uxTaskGetNumberOfTasks();
+ 1036              		.loc 1 363 9 is_stmt 1 view .LVU320
+ 363:App/src/app_freertos.c ****         report.active_tasks = uxTaskGetNumberOfTasks();
+ 1037              		.loc 1 363 28 is_stmt 0 view .LVU321
+ 1038 0072 FFF7FEFF 		bl	xTaskGetTickCount
+ 1039              	.LVL82:
+ 364:App/src/app_freertos.c **** 
+ 1040              		.loc 1 364 9 is_stmt 1 view .LVU322
+ 364:App/src/app_freertos.c **** 
+ 1041              		.loc 1 364 31 is_stmt 0 view .LVU323
+ 1042 0076 FFF7FEFF 		bl	uxTaskGetNumberOfTasks
+ 1043              	.LVL83:
+ 1044              	.LBB8:
+ 367:App/src/app_freertos.c ****             if (task_handles[i] != NULL) {
+ 1045              		.loc 1 367 18 view .LVU324
+ 1046 007a 0024     		movs	r4, #0
+ 1047              	.LBE8:
+ 364:App/src/app_freertos.c **** 
+ 1048              		.loc 1 364 31 view .LVU325
+ 1049 007c 4A46     		mov	r2, r9
+ 1050 007e 0546     		mov	r5, r0
+ 1051              	.LVL84:
+ 367:App/src/app_freertos.c ****             if (task_handles[i] != NULL) {
+ 1052              		.loc 1 367 9 is_stmt 1 view .LVU326
+ 1053              	.LBB9:
+ 367:App/src/app_freertos.c ****             if (task_handles[i] != NULL) {
+ 1054              		.loc 1 367 14 view .LVU327
+ 367:App/src/app_freertos.c ****             if (task_handles[i] != NULL) {
+ 1055              		.loc 1 367 25 view .LVU328
+ 1056 0080 0DF1280B 		add	fp, sp, #40
+ 1057              	.LVL85:
+ 1058              	.L71:
+ 368:App/src/app_freertos.c ****                 report.stack_watermarks[i] =
+ 1059              		.loc 1 368 13 view .LVU329
+ 369:App/src/app_freertos.c ****                     uxTaskGetStackHighWaterMark(task_handles[i]);
+ 1060              		.loc 1 369 17 view .LVU330
+ 368:App/src/app_freertos.c ****                 report.stack_watermarks[i] =
+ 1061              		.loc 1 368 16 is_stmt 0 view .LVU331
+ARM GAS  /tmp/ccPd8bFT.s 			page 31
+
+
+ 1062 0084 3AB1     		cbz	r2, .L69
+ 370:App/src/app_freertos.c ****             }
+ 1063              		.loc 1 370 21 view .LVU332
+ 1064 0086 1046     		mov	r0, r2
+ 1065 0088 FFF7FEFF 		bl	uxTaskGetStackHighWaterMark
+ 1066              	.LVL86:
+ 369:App/src/app_freertos.c ****                     uxTaskGetStackHighWaterMark(task_handles[i]);
+ 1067              		.loc 1 369 44 view .LVU333
+ 1068 008c 3AAB     		add	r3, sp, #232
+ 1069 008e 03EB4403 		add	r3, r3, r4, lsl #1
+ 1070 0092 23F8A00C 		strh	r0, [r3, #-160]	@ movhi
+ 1071              	.L69:
+ 367:App/src/app_freertos.c ****             if (task_handles[i] != NULL) {
+ 1072              		.loc 1 367 32 is_stmt 1 discriminator 2 view .LVU334
+ 367:App/src/app_freertos.c ****             if (task_handles[i] != NULL) {
+ 1073              		.loc 1 367 33 is_stmt 0 discriminator 2 view .LVU335
+ 1074 0096 0134     		adds	r4, r4, #1
+ 1075              	.LVL87:
+ 367:App/src/app_freertos.c ****             if (task_handles[i] != NULL) {
+ 1076              		.loc 1 367 25 is_stmt 1 discriminator 2 view .LVU336
+ 367:App/src/app_freertos.c ****             if (task_handles[i] != NULL) {
+ 1077              		.loc 1 367 9 is_stmt 0 discriminator 2 view .LVU337
+ 1078 0098 072C     		cmp	r4, #7
+ 1079 009a 02D0     		beq	.L70
+ 368:App/src/app_freertos.c ****                 report.stack_watermarks[i] =
+ 1080              		.loc 1 368 29 view .LVU338
+ 1081 009c 5BF8042B 		ldr	r2, [fp], #4
+ 1082 00a0 F0E7     		b	.L71
+ 1083              	.L70:
+ 1084              	.LBE9:
+ 375:App/src/app_freertos.c ****             log_entry_t entry;
+ 1085              		.loc 1 375 9 is_stmt 1 view .LVU339
+ 375:App/src/app_freertos.c ****             log_entry_t entry;
+ 1086              		.loc 1 375 12 is_stmt 0 view .LVU340
+ 1087 00a2 D8F80030 		ldr	r3, [r8]
+ 1088 00a6 002B     		cmp	r3, #0
+ 1089 00a8 D8D0     		beq	.L72
+ 1090              	.LBB10:
+ 376:App/src/app_freertos.c ****             entry.timestamp_ms = report.timestamp_ms;
+ 1091              		.loc 1 376 13 is_stmt 1 view .LVU341
+ 377:App/src/app_freertos.c ****             entry.level = 1;  /* INFO */
+ 1092              		.loc 1 377 13 view .LVU342
+ 379:App/src/app_freertos.c ****             snprintf(entry.msg, sizeof(entry.msg),
+ 1093              		.loc 1 379 31 is_stmt 0 view .LVU343
+ 1094 00aa 0620     		movs	r0, #6
+ 378:App/src/app_freertos.c ****             entry.source_task = 6; /* 诊断任务ID */
+ 1095              		.loc 1 378 25 view .LVU344
+ 1096 00ac 0124     		movs	r4, #1
+ 1097              	.LVL88:
+ 1098              		.loc 1 380 13 view .LVU345
+ 1099 00ae BDF85420 		ldrh	r2, [sp, #84]
+ 1100 00b2 EDB2     		uxtb	r5, r5
+ 1101              	.LVL89:
+ 1102              		.loc 1 380 13 view .LVU346
+ 1103 00b4 BDF85210 		ldrh	r1, [sp, #82]
+ 1104 00b8 CDE90625 		strd	r2, r5, [sp, #24]
+ 1105 00bc BDF85020 		ldrh	r2, [sp, #80]
+ARM GAS  /tmp/ccPd8bFT.s 			page 32
+
+
+ 1106 00c0 3B46     		mov	r3, r7
+ 1107 00c2 CDE90421 		strd	r2, r1, [sp, #16]
+ 1108 00c6 BDF84E10 		ldrh	r1, [sp, #78]
+ 1109 00ca BDF84C20 		ldrh	r2, [sp, #76]
+ 379:App/src/app_freertos.c ****             snprintf(entry.msg, sizeof(entry.msg),
+ 1110              		.loc 1 379 31 view .LVU347
+ 1111 00ce 8DF86500 		strb	r0, [sp, #101]
+ 1112              		.loc 1 380 13 view .LVU348
+ 1113 00d2 CDE90221 		strd	r2, r1, [sp, #8]
+ 1114 00d6 BDF84A10 		ldrh	r1, [sp, #74]
+ 1115 00da BDF84820 		ldrh	r2, [sp, #72]
+ 1116 00de 0DF16600 		add	r0, sp, #102
+ 1117 00e2 CDE90021 		strd	r2, r1, [sp]
+ 1118 00e6 5246     		mov	r2, r10
+ 1119 00e8 8021     		movs	r1, #128
+ 377:App/src/app_freertos.c ****             entry.level = 1;  /* INFO */
+ 1120              		.loc 1 377 32 view .LVU349
+ 1121 00ea 1896     		str	r6, [sp, #96]
+ 378:App/src/app_freertos.c ****             entry.source_task = 6; /* 诊断任务ID */
+ 1122              		.loc 1 378 13 is_stmt 1 view .LVU350
+ 378:App/src/app_freertos.c ****             entry.source_task = 6; /* 诊断任务ID */
+ 1123              		.loc 1 378 25 is_stmt 0 view .LVU351
+ 1124 00ec 8DF86440 		strb	r4, [sp, #100]
+ 379:App/src/app_freertos.c ****             snprintf(entry.msg, sizeof(entry.msg),
+ 1125              		.loc 1 379 13 is_stmt 1 view .LVU352
+ 1126              		.loc 1 380 13 view .LVU353
+ 1127 00f0 FFF7FEFF 		bl	snprintf
+ 1128              	.LVL90:
+ 381:App/src/app_freertos.c ****                      "DIAG:heap=%lu B,stack=[%u,%u,%u,%u,%u,%u,%u],tasks=%u",
+ 382:App/src/app_freertos.c ****                      (unsigned long)report.free_heap,
+ 383:App/src/app_freertos.c ****                      report.stack_watermarks[0],
+ 384:App/src/app_freertos.c ****                      report.stack_watermarks[1],
+ 385:App/src/app_freertos.c ****                      report.stack_watermarks[2],
+ 386:App/src/app_freertos.c ****                      report.stack_watermarks[3],
+ 387:App/src/app_freertos.c ****                      report.stack_watermarks[4],
+ 388:App/src/app_freertos.c ****                      report.stack_watermarks[5],
+ 389:App/src/app_freertos.c ****                      report.stack_watermarks[6],
+ 390:App/src/app_freertos.c ****                      (unsigned)report.active_tasks);
+ 391:App/src/app_freertos.c **** 
+ 392:App/src/app_freertos.c ****             xQueueSend(s_queue_log, &entry, 0);
+ 1129              		.loc 1 392 13 view .LVU354
+ 1130 00f4 0023     		movs	r3, #0
+ 1131 00f6 D8F80000 		ldr	r0, [r8]
+ 1132 00fa 1A46     		mov	r2, r3
+ 1133 00fc 18A9     		add	r1, sp, #96
+ 1134 00fe FFF7FEFF 		bl	xQueueGenericSend
+ 1135              	.LVL91:
+ 1136 0102 ABE7     		b	.L72
+ 1137              	.L81:
+ 1138              		.align	2
+ 1139              	.L80:
+ 1140 0104 00000000 		.word	.LANCHOR0
+ 1141 0108 00000000 		.word	.LANCHOR8
+ 1142 010c 00000000 		.word	.LANCHOR9
+ 1143 0110 00000000 		.word	.LANCHOR10
+ 1144 0114 00000000 		.word	.LANCHOR11
+ 1145 0118 00000000 		.word	.LANCHOR12
+ARM GAS  /tmp/ccPd8bFT.s 			page 33
+
+
+ 1146 011c 00000000 		.word	.LANCHOR13
+ 1147 0120 00000000 		.word	.LANCHOR7
+ 1148 0124 00000000 		.word	.LANCHOR2
+ 1149 0128 00000000 		.word	.LC0
+ 1150              	.LBE10:
+ 1151              		.cfi_endproc
+ 1152              	.LFE817:
+ 1154              		.section	.rodata.app_freertos_init.str1.4,"aMS",%progbits,1
+ 1155              		.align	2
+ 1156              	.LC1:
+ 1157 0000 43616D65 		.ascii	"Camera\000"
+ 1157      726100
+ 1158 0007 00       		.align	2
+ 1159              	.LC2:
+ 1160 0008 496E6665 		.ascii	"Inference\000"
+ 1160      72656E63 
+ 1160      6500
+ 1161 0012 0000     		.align	2
+ 1162              	.LC3:
+ 1163 0014 436F6D6D 		.ascii	"Comm\000"
+ 1163      00
+ 1164 0019 000000   		.align	2
+ 1165              	.LC4:
+ 1166 001c 53656E73 		.ascii	"Sensor\000"
+ 1166      6F7200
+ 1167 0023 00       		.align	2
+ 1168              	.LC5:
+ 1169 0024 436F6E74 		.ascii	"Control\000"
+ 1169      726F6C00 
+ 1170              		.align	2
+ 1171              	.LC6:
+ 1172 002c 4C6F6767 		.ascii	"Logger\000"
+ 1172      657200
+ 1173 0033 00       		.align	2
+ 1174              	.LC7:
+ 1175 0034 44696167 		.ascii	"Diag\000"
+ 1175      00
+ 1176              		.section	.text.app_freertos_init,"ax",%progbits
+ 1177              		.align	1
+ 1178              		.p2align 2,,3
+ 1179              		.global	app_freertos_init
+ 1180              		.syntax unified
+ 1181              		.thumb
+ 1182              		.thumb_func
+ 1183              		.fpu fpv5-d16
+ 1185              	app_freertos_init:
+ 1186              	.LFB818:
+ 393:App/src/app_freertos.c ****         }
+ 394:App/src/app_freertos.c **** 
+ 395:App/src/app_freertos.c ****         /* 喂看门狗 */
+ 396:App/src/app_freertos.c ****         /* HAL_IWDG_Refresh(&hiwdg); */
+ 397:App/src/app_freertos.c ****     }
+ 398:App/src/app_freertos.c **** }
+ 399:App/src/app_freertos.c **** 
+ 400:App/src/app_freertos.c **** /* =============================================================================
+ 401:App/src/app_freertos.c ****  * 系统初始化
+ 402:App/src/app_freertos.c ****  * ==========================================================================*/
+ARM GAS  /tmp/ccPd8bFT.s 			page 34
+
+
+ 403:App/src/app_freertos.c **** 
+ 404:App/src/app_freertos.c **** /**
+ 405:App/src/app_freertos.c ****  * @brief  初始化 FreeRTOS 任务和同步原语
+ 406:App/src/app_freertos.c ****  */
+ 407:App/src/app_freertos.c **** lingxi_err_t app_freertos_init(void)
+ 408:App/src/app_freertos.c **** {
+ 1187              		.loc 1 408 1 view -0
+ 1188              		.cfi_startproc
+ 1189              		@ args = 0, pretend = 0, frame = 0
+ 1190              		@ frame_needed = 0, uses_anonymous_args = 0
+ 409:App/src/app_freertos.c ****     /* 创建事件组 */
+ 410:App/src/app_freertos.c ****     system_event_group_init();
+ 1191              		.loc 1 410 5 view .LVU356
+ 1192              	.LBB17:
+ 1193              	.LBI17:
+ 411:App/src/app_freertos.c **** 
+ 412:App/src/app_freertos.c ****     /* 创建队列 */
+ 413:App/src/app_freertos.c ****     queues_init();
+ 414:App/src/app_freertos.c **** 
+ 415:App/src/app_freertos.c ****     /* 创建互斥量 */
+ 416:App/src/app_freertos.c ****     mutexes_init();
+ 417:App/src/app_freertos.c **** 
+ 418:App/src/app_freertos.c ****     /* 创建任务 */
+ 419:App/src/app_freertos.c ****     BaseType_t ret;
+ 420:App/src/app_freertos.c **** 
+ 421:App/src/app_freertos.c ****     ret = xTaskCreate(vTaskCamera, "Camera", TASK_STACK_CAMERA, NULL,
+ 422:App/src/app_freertos.c ****                       TASK_PRIO_CAMERA, &xCameraTaskHandle);
+ 423:App/src/app_freertos.c ****     if (ret != pdPASS) return LINGXI_ERR_NO_MEM;
+ 424:App/src/app_freertos.c **** 
+ 425:App/src/app_freertos.c ****     ret = xTaskCreate(vTaskInference, "Inference", TASK_STACK_INFERENCE, NULL,
+ 426:App/src/app_freertos.c ****                       TASK_PRIO_INFERENCE, &xInferenceTaskHandle);
+ 427:App/src/app_freertos.c ****     if (ret != pdPASS) return LINGXI_ERR_NO_MEM;
+ 428:App/src/app_freertos.c **** 
+ 429:App/src/app_freertos.c ****     ret = xTaskCreate(vTaskComm, "Comm", TASK_STACK_COMM, NULL,
+ 430:App/src/app_freertos.c ****                       TASK_PRIO_COMM, &xCommTaskHandle);
+ 431:App/src/app_freertos.c ****     if (ret != pdPASS) return LINGXI_ERR_NO_MEM;
+ 432:App/src/app_freertos.c **** 
+ 433:App/src/app_freertos.c ****     ret = xTaskCreate(vTaskSensor, "Sensor", TASK_STACK_SENSOR, NULL,
+ 434:App/src/app_freertos.c ****                       TASK_PRIO_SENSOR, &xSensorTaskHandle);
+ 435:App/src/app_freertos.c ****     if (ret != pdPASS) return LINGXI_ERR_NO_MEM;
+ 436:App/src/app_freertos.c **** 
+ 437:App/src/app_freertos.c ****     ret = xTaskCreate(vTaskControl, "Control", TASK_STACK_CONTROL, NULL,
+ 438:App/src/app_freertos.c ****                       TASK_PRIO_CONTROL, &xControlTaskHandle);
+ 439:App/src/app_freertos.c ****     if (ret != pdPASS) return LINGXI_ERR_NO_MEM;
+ 440:App/src/app_freertos.c **** 
+ 441:App/src/app_freertos.c ****     ret = xTaskCreate(vTaskLogger, "Logger", TASK_STACK_LOGGER, NULL,
+ 442:App/src/app_freertos.c ****                       TASK_PRIO_LOGGER, &xLoggerTaskHandle);
+ 443:App/src/app_freertos.c ****     if (ret != pdPASS) return LINGXI_ERR_NO_MEM;
+ 444:App/src/app_freertos.c **** 
+ 445:App/src/app_freertos.c ****     ret = xTaskCreate(vTaskDiag, "Diag", TASK_STACK_DIAG, NULL,
+ 446:App/src/app_freertos.c ****                       TASK_PRIO_DIAG, &xDiagTaskHandle);
+ 447:App/src/app_freertos.c ****     if (ret != pdPASS) return LINGXI_ERR_NO_MEM;
+ 448:App/src/app_freertos.c **** 
+ 449:App/src/app_freertos.c ****     LX_DEBUG_PRINT("FreeRTOS tasks created: 7 tasks");
+ 450:App/src/app_freertos.c ****     return LINGXI_OK;
+ 451:App/src/app_freertos.c **** }
+ 452:App/src/app_freertos.c **** 
+ARM GAS  /tmp/ccPd8bFT.s 			page 35
+
+
+ 453:App/src/app_freertos.c **** /**
+ 454:App/src/app_freertos.c ****  * @brief  启动调度器
+ 455:App/src/app_freertos.c ****  */
+ 456:App/src/app_freertos.c **** void app_freertos_start(void)
+ 457:App/src/app_freertos.c **** {
+ 458:App/src/app_freertos.c ****     /* 设置初始化完成标志 */
+ 459:App/src/app_freertos.c ****     xEventGroupSetBits(g_system_event_group, EVT_SYS_INIT_DONE);
+ 460:App/src/app_freertos.c **** 
+ 461:App/src/app_freertos.c ****     LX_DEBUG_PRINT("Starting FreeRTOS scheduler...");
+ 462:App/src/app_freertos.c ****     vTaskStartScheduler();
+ 463:App/src/app_freertos.c **** 
+ 464:App/src/app_freertos.c ****     /* 不应到达此处 */
+ 465:App/src/app_freertos.c ****     for (;;);
+ 466:App/src/app_freertos.c **** }
+ 467:App/src/app_freertos.c **** 
+ 468:App/src/app_freertos.c **** /* =============================================================================
+ 469:App/src/app_freertos.c ****  * 私有函数实现
+ 470:App/src/app_freertos.c ****  * ==========================================================================*/
+ 471:App/src/app_freertos.c **** 
+ 472:App/src/app_freertos.c **** static void system_event_group_init(void)
+ 1194              		.loc 1 472 13 view .LVU357
+ 1195              	.LBB18:
+ 473:App/src/app_freertos.c **** {
+ 474:App/src/app_freertos.c ****     g_system_event_group = xEventGroupCreate();
+ 1196              		.loc 1 474 5 view .LVU358
+ 1197              	.LBE18:
+ 1198              	.LBE17:
+ 408:App/src/app_freertos.c ****     /* 创建事件组 */
+ 1199              		.loc 1 408 1 is_stmt 0 view .LVU359
+ 1200 0000 10B5     		push	{r4, lr}
+ 1201              		.cfi_def_cfa_offset 8
+ 1202              		.cfi_offset 4, -8
+ 1203              		.cfi_offset 14, -4
+ 1204 0002 82B0     		sub	sp, sp, #8
+ 1205              		.cfi_def_cfa_offset 16
+ 1206              	.LBB21:
+ 1207              	.LBB19:
+ 1208              		.loc 1 474 28 view .LVU360
+ 1209 0004 FFF7FEFF 		bl	xEventGroupCreate
+ 1210              	.LVL92:
+ 1211 0008 0446     		mov	r4, r0
+ 1212              		.loc 1 474 26 view .LVU361
+ 1213 000a 4B4B     		ldr	r3, .L87
+ 1214              	.LBE19:
+ 1215              	.LBE21:
+ 1216              	.LBB22:
+ 1217              	.LBB23:
+ 475:App/src/app_freertos.c ****     configASSERT(g_system_event_group != NULL);
+ 476:App/src/app_freertos.c **** }
+ 477:App/src/app_freertos.c **** 
+ 478:App/src/app_freertos.c **** static void queues_init(void)
+ 479:App/src/app_freertos.c **** {
+ 480:App/src/app_freertos.c ****     s_queue_cam_frames = xQueueCreate(QUEUE_DEPTH_CAM_FRAMES, sizeof(uint8_t*));
+ 1218              		.loc 1 480 26 view .LVU362
+ 1219 000c 0022     		movs	r2, #0
+ 1220 000e 0421     		movs	r1, #4
+ 1221 0010 0320     		movs	r0, #3
+ARM GAS  /tmp/ccPd8bFT.s 			page 36
+
+
+ 1222              	.LBE23:
+ 1223              	.LBE22:
+ 1224              	.LBB26:
+ 1225              	.LBB20:
+ 474:App/src/app_freertos.c ****     configASSERT(g_system_event_group != NULL);
+ 1226              		.loc 1 474 26 view .LVU363
+ 1227 0012 1C60     		str	r4, [r3]
+ 475:App/src/app_freertos.c ****     configASSERT(g_system_event_group != NULL);
+ 1228              		.loc 1 475 47 is_stmt 1 view .LVU364
+ 1229              	.LBE20:
+ 1230              	.LBE26:
+ 413:App/src/app_freertos.c **** 
+ 1231              		.loc 1 413 5 view .LVU365
+ 1232              	.LBB27:
+ 1233              	.LBI22:
+ 478:App/src/app_freertos.c **** {
+ 1234              		.loc 1 478 13 view .LVU366
+ 1235              	.LBB24:
+ 1236              		.loc 1 480 5 view .LVU367
+ 1237              		.loc 1 480 26 is_stmt 0 view .LVU368
+ 1238 0014 FFF7FEFF 		bl	xQueueGenericCreate
+ 1239              	.LVL93:
+ 1240 0018 0446     		mov	r4, r0
+ 1241              		.loc 1 480 24 view .LVU369
+ 1242 001a 484B     		ldr	r3, .L87+4
+ 481:App/src/app_freertos.c ****     configASSERT(s_queue_cam_frames != NULL);
+ 482:App/src/app_freertos.c **** 
+ 483:App/src/app_freertos.c ****     s_queue_infer_results = xQueueCreate(QUEUE_DEPTH_INFER_RESULTS, sizeof(npu_infer_result_t));
+ 1243              		.loc 1 483 29 view .LVU370
+ 1244 001c 0022     		movs	r2, #0
+ 1245 001e B821     		movs	r1, #184
+ 1246 0020 0320     		movs	r0, #3
+ 480:App/src/app_freertos.c ****     configASSERT(s_queue_cam_frames != NULL);
+ 1247              		.loc 1 480 24 view .LVU371
+ 1248 0022 1C60     		str	r4, [r3]
+ 481:App/src/app_freertos.c ****     configASSERT(s_queue_cam_frames != NULL);
+ 1249              		.loc 1 481 45 is_stmt 1 view .LVU372
+ 1250              		.loc 1 483 5 view .LVU373
+ 1251              		.loc 1 483 29 is_stmt 0 view .LVU374
+ 1252 0024 FFF7FEFF 		bl	xQueueGenericCreate
+ 1253              	.LVL94:
+ 1254 0028 0446     		mov	r4, r0
+ 1255              		.loc 1 483 27 view .LVU375
+ 1256 002a 454B     		ldr	r3, .L87+8
+ 484:App/src/app_freertos.c ****     configASSERT(s_queue_infer_results != NULL);
+ 485:App/src/app_freertos.c **** 
+ 486:App/src/app_freertos.c ****     s_queue_sensor_data = xQueueCreate(QUEUE_DEPTH_SENSOR_DATA, sizeof(sensor_fusion_data_t));
+ 1257              		.loc 1 486 27 view .LVU376
+ 1258 002c 0022     		movs	r2, #0
+ 1259 002e 1C21     		movs	r1, #28
+ 1260 0030 0520     		movs	r0, #5
+ 483:App/src/app_freertos.c ****     configASSERT(s_queue_infer_results != NULL);
+ 1261              		.loc 1 483 27 view .LVU377
+ 1262 0032 1C60     		str	r4, [r3]
+ 484:App/src/app_freertos.c ****     configASSERT(s_queue_infer_results != NULL);
+ 1263              		.loc 1 484 48 is_stmt 1 view .LVU378
+ 1264              		.loc 1 486 5 view .LVU379
+ARM GAS  /tmp/ccPd8bFT.s 			page 37
+
+
+ 1265              		.loc 1 486 27 is_stmt 0 view .LVU380
+ 1266 0034 FFF7FEFF 		bl	xQueueGenericCreate
+ 1267              	.LVL95:
+ 1268 0038 0446     		mov	r4, r0
+ 1269              		.loc 1 486 25 view .LVU381
+ 1270 003a 424B     		ldr	r3, .L87+12
+ 487:App/src/app_freertos.c ****     configASSERT(s_queue_sensor_data != NULL);
+ 488:App/src/app_freertos.c **** 
+ 489:App/src/app_freertos.c ****     s_queue_ctrl_cmds = xQueueCreate(QUEUE_DEPTH_CTRL_CMDS, sizeof(control_cmd_t));
+ 1271              		.loc 1 489 25 view .LVU382
+ 1272 003c 0022     		movs	r2, #0
+ 1273 003e 2C21     		movs	r1, #44
+ 1274 0040 0520     		movs	r0, #5
+ 486:App/src/app_freertos.c ****     configASSERT(s_queue_sensor_data != NULL);
+ 1275              		.loc 1 486 25 view .LVU383
+ 1276 0042 1C60     		str	r4, [r3]
+ 487:App/src/app_freertos.c ****     configASSERT(s_queue_sensor_data != NULL);
+ 1277              		.loc 1 487 46 is_stmt 1 view .LVU384
+ 1278              		.loc 1 489 5 view .LVU385
+ 1279              		.loc 1 489 25 is_stmt 0 view .LVU386
+ 1280 0044 FFF7FEFF 		bl	xQueueGenericCreate
+ 1281              	.LVL96:
+ 1282 0048 0446     		mov	r4, r0
+ 1283              		.loc 1 489 23 view .LVU387
+ 1284 004a 3F4B     		ldr	r3, .L87+16
+ 490:App/src/app_freertos.c ****     configASSERT(s_queue_ctrl_cmds != NULL);
+ 491:App/src/app_freertos.c **** 
+ 492:App/src/app_freertos.c ****     s_queue_log = xQueueCreate(QUEUE_DEPTH_CTRL_CMDS, sizeof(log_entry_t));
+ 1285              		.loc 1 492 19 view .LVU388
+ 1286 004c 8621     		movs	r1, #134
+ 1287 004e 0022     		movs	r2, #0
+ 1288 0050 0520     		movs	r0, #5
+ 489:App/src/app_freertos.c ****     configASSERT(s_queue_ctrl_cmds != NULL);
+ 1289              		.loc 1 489 23 view .LVU389
+ 1290 0052 1C60     		str	r4, [r3]
+ 490:App/src/app_freertos.c ****     configASSERT(s_queue_ctrl_cmds != NULL);
+ 1291              		.loc 1 490 44 is_stmt 1 view .LVU390
+ 1292              		.loc 1 492 5 view .LVU391
+ 1293              		.loc 1 492 19 is_stmt 0 view .LVU392
+ 1294 0054 FFF7FEFF 		bl	xQueueGenericCreate
+ 1295              	.LVL97:
+ 1296 0058 0246     		mov	r2, r0
+ 1297              		.loc 1 492 17 view .LVU393
+ 1298 005a 3C4B     		ldr	r3, .L87+20
+ 1299              	.LBE24:
+ 1300              	.LBE27:
+ 1301              	.LBB28:
+ 1302              	.LBB29:
+ 493:App/src/app_freertos.c ****     configASSERT(s_queue_log != NULL);
+ 494:App/src/app_freertos.c **** }
+ 495:App/src/app_freertos.c **** 
+ 496:App/src/app_freertos.c **** static void mutexes_init(void)
+ 497:App/src/app_freertos.c **** {
+ 498:App/src/app_freertos.c ****     s_mutex_npu = xSemaphoreCreateMutex();
+ 1303              		.loc 1 498 19 view .LVU394
+ 1304 005c 0120     		movs	r0, #1
+ 1305              	.LBE29:
+ARM GAS  /tmp/ccPd8bFT.s 			page 38
+
+
+ 1306              	.LBE28:
+ 1307              	.LBB32:
+ 1308              	.LBB25:
+ 492:App/src/app_freertos.c ****     configASSERT(s_queue_log != NULL);
+ 1309              		.loc 1 492 17 view .LVU395
+ 1310 005e 1A60     		str	r2, [r3]
+ 493:App/src/app_freertos.c ****     configASSERT(s_queue_log != NULL);
+ 1311              		.loc 1 493 38 is_stmt 1 view .LVU396
+ 1312              	.LBE25:
+ 1313              	.LBE32:
+ 416:App/src/app_freertos.c **** 
+ 1314              		.loc 1 416 5 view .LVU397
+ 1315              	.LBB33:
+ 1316              	.LBI28:
+ 496:App/src/app_freertos.c **** {
+ 1317              		.loc 1 496 13 view .LVU398
+ 1318              	.LBB30:
+ 1319              		.loc 1 498 5 view .LVU399
+ 1320              		.loc 1 498 19 is_stmt 0 view .LVU400
+ 1321 0060 FFF7FEFF 		bl	xQueueCreateMutex
+ 1322              	.LVL98:
+ 1323 0064 0246     		mov	r2, r0
+ 1324              	.LBE30:
+ 1325              	.LBE33:
+ 421:App/src/app_freertos.c ****                       TASK_PRIO_CAMERA, &xCameraTaskHandle);
+ 1326              		.loc 1 421 11 view .LVU401
+ 1327 0066 0E24     		movs	r4, #14
+ 1328              	.LBB34:
+ 1329              	.LBB31:
+ 1330              		.loc 1 498 17 view .LVU402
+ 1331 0068 394B     		ldr	r3, .L87+24
+ 499:App/src/app_freertos.c ****     configASSERT(s_mutex_npu != NULL);
+ 500:App/src/app_freertos.c **** 
+ 501:App/src/app_freertos.c ****     s_mutex_sdram = xSemaphoreCreateMutex();
+ 1332              		.loc 1 501 21 view .LVU403
+ 1333 006a 0120     		movs	r0, #1
+ 498:App/src/app_freertos.c ****     configASSERT(s_mutex_npu != NULL);
+ 1334              		.loc 1 498 17 view .LVU404
+ 1335 006c 1A60     		str	r2, [r3]
+ 499:App/src/app_freertos.c ****     configASSERT(s_mutex_npu != NULL);
+ 1336              		.loc 1 499 38 is_stmt 1 view .LVU405
+ 1337              		.loc 1 501 5 view .LVU406
+ 1338              		.loc 1 501 21 is_stmt 0 view .LVU407
+ 1339 006e FFF7FEFF 		bl	xQueueCreateMutex
+ 1340              	.LVL99:
+ 502:App/src/app_freertos.c ****     configASSERT(s_mutex_sdram != NULL);
+ 1341              		.loc 1 502 40 is_stmt 1 view .LVU408
+ 1342              	.LBE31:
+ 1343              	.LBE34:
+ 419:App/src/app_freertos.c **** 
+ 1344              		.loc 1 419 5 view .LVU409
+ 421:App/src/app_freertos.c ****                       TASK_PRIO_CAMERA, &xCameraTaskHandle);
+ 1345              		.loc 1 421 5 view .LVU410
+ 421:App/src/app_freertos.c ****                       TASK_PRIO_CAMERA, &xCameraTaskHandle);
+ 1346              		.loc 1 421 11 is_stmt 0 view .LVU411
+ 1347 0072 3848     		ldr	r0, .L87+28
+ 1348 0074 0023     		movs	r3, #0
+ARM GAS  /tmp/ccPd8bFT.s 			page 39
+
+
+ 1349 0076 0190     		str	r0, [sp, #4]
+ 1350 0078 4FF48062 		mov	r2, #1024
+ 1351 007c 3649     		ldr	r1, .L87+32
+ 1352 007e 3748     		ldr	r0, .L87+36
+ 1353 0080 0094     		str	r4, [sp]
+ 1354 0082 FFF7FEFF 		bl	xTaskCreate
+ 1355              	.LVL100:
+ 423:App/src/app_freertos.c **** 
+ 1356              		.loc 1 423 5 is_stmt 1 view .LVU412
+ 423:App/src/app_freertos.c **** 
+ 1357              		.loc 1 423 8 is_stmt 0 view .LVU413
+ 1358 0086 0128     		cmp	r0, #1
+ 1359 0088 51D1     		bne	.L83
+ 425:App/src/app_freertos.c ****                       TASK_PRIO_INFERENCE, &xInferenceTaskHandle);
+ 1360              		.loc 1 425 5 is_stmt 1 view .LVU414
+ 425:App/src/app_freertos.c ****                       TASK_PRIO_INFERENCE, &xInferenceTaskHandle);
+ 1361              		.loc 1 425 11 is_stmt 0 view .LVU415
+ 1362 008a 0D24     		movs	r4, #13
+ 1363 008c 3448     		ldr	r0, .L87+40
+ 1364              	.LVL101:
+ 425:App/src/app_freertos.c ****                       TASK_PRIO_INFERENCE, &xInferenceTaskHandle);
+ 1365              		.loc 1 425 11 view .LVU416
+ 1366 008e 0023     		movs	r3, #0
+ 1367 0090 0190     		str	r0, [sp, #4]
+ 1368 0092 4FF40062 		mov	r2, #2048
+ 1369 0096 3349     		ldr	r1, .L87+44
+ 1370 0098 3348     		ldr	r0, .L87+48
+ 1371 009a 0094     		str	r4, [sp]
+ 1372 009c FFF7FEFF 		bl	xTaskCreate
+ 1373              	.LVL102:
+ 427:App/src/app_freertos.c **** 
+ 1374              		.loc 1 427 5 is_stmt 1 view .LVU417
+ 427:App/src/app_freertos.c **** 
+ 1375              		.loc 1 427 8 is_stmt 0 view .LVU418
+ 1376 00a0 0128     		cmp	r0, #1
+ 1377 00a2 44D1     		bne	.L83
+ 429:App/src/app_freertos.c ****                       TASK_PRIO_COMM, &xCommTaskHandle);
+ 1378              		.loc 1 429 5 is_stmt 1 view .LVU419
+ 429:App/src/app_freertos.c ****                       TASK_PRIO_COMM, &xCommTaskHandle);
+ 1379              		.loc 1 429 11 is_stmt 0 view .LVU420
+ 1380 00a4 0A24     		movs	r4, #10
+ 1381 00a6 3148     		ldr	r0, .L87+52
+ 1382              	.LVL103:
+ 429:App/src/app_freertos.c ****                       TASK_PRIO_COMM, &xCommTaskHandle);
+ 1383              		.loc 1 429 11 view .LVU421
+ 1384 00a8 0023     		movs	r3, #0
+ 1385 00aa 0190     		str	r0, [sp, #4]
+ 1386 00ac 4FF48062 		mov	r2, #1024
+ 1387 00b0 2F49     		ldr	r1, .L87+56
+ 1388 00b2 3048     		ldr	r0, .L87+60
+ 1389 00b4 0094     		str	r4, [sp]
+ 1390 00b6 FFF7FEFF 		bl	xTaskCreate
+ 1391              	.LVL104:
+ 431:App/src/app_freertos.c **** 
+ 1392              		.loc 1 431 5 is_stmt 1 view .LVU422
+ 431:App/src/app_freertos.c **** 
+ 1393              		.loc 1 431 8 is_stmt 0 view .LVU423
+ARM GAS  /tmp/ccPd8bFT.s 			page 40
+
+
+ 1394 00ba 0128     		cmp	r0, #1
+ 1395 00bc 37D1     		bne	.L83
+ 433:App/src/app_freertos.c ****                       TASK_PRIO_SENSOR, &xSensorTaskHandle);
+ 1396              		.loc 1 433 5 is_stmt 1 view .LVU424
+ 433:App/src/app_freertos.c ****                       TASK_PRIO_SENSOR, &xSensorTaskHandle);
+ 1397              		.loc 1 433 11 is_stmt 0 view .LVU425
+ 1398 00be 0824     		movs	r4, #8
+ 1399 00c0 2D48     		ldr	r0, .L87+64
+ 1400              	.LVL105:
+ 433:App/src/app_freertos.c ****                       TASK_PRIO_SENSOR, &xSensorTaskHandle);
+ 1401              		.loc 1 433 11 view .LVU426
+ 1402 00c2 0023     		movs	r3, #0
+ 1403 00c4 0190     		str	r0, [sp, #4]
+ 1404 00c6 4FF40072 		mov	r2, #512
+ 1405 00ca 2C49     		ldr	r1, .L87+68
+ 1406 00cc 2C48     		ldr	r0, .L87+72
+ 1407 00ce 0094     		str	r4, [sp]
+ 1408 00d0 FFF7FEFF 		bl	xTaskCreate
+ 1409              	.LVL106:
+ 435:App/src/app_freertos.c **** 
+ 1410              		.loc 1 435 5 is_stmt 1 view .LVU427
+ 435:App/src/app_freertos.c **** 
+ 1411              		.loc 1 435 8 is_stmt 0 view .LVU428
+ 1412 00d4 0128     		cmp	r0, #1
+ 1413 00d6 2AD1     		bne	.L83
+ 437:App/src/app_freertos.c ****                       TASK_PRIO_CONTROL, &xControlTaskHandle);
+ 1414              		.loc 1 437 5 is_stmt 1 view .LVU429
+ 437:App/src/app_freertos.c ****                       TASK_PRIO_CONTROL, &xControlTaskHandle);
+ 1415              		.loc 1 437 11 is_stmt 0 view .LVU430
+ 1416 00d8 0724     		movs	r4, #7
+ 1417 00da 2A48     		ldr	r0, .L87+76
+ 1418              	.LVL107:
+ 437:App/src/app_freertos.c ****                       TASK_PRIO_CONTROL, &xControlTaskHandle);
+ 1419              		.loc 1 437 11 view .LVU431
+ 1420 00dc 0023     		movs	r3, #0
+ 1421 00de 0190     		str	r0, [sp, #4]
+ 1422 00e0 4FF48062 		mov	r2, #1024
+ 1423 00e4 2849     		ldr	r1, .L87+80
+ 1424 00e6 2948     		ldr	r0, .L87+84
+ 1425 00e8 0094     		str	r4, [sp]
+ 1426 00ea FFF7FEFF 		bl	xTaskCreate
+ 1427              	.LVL108:
+ 439:App/src/app_freertos.c **** 
+ 1428              		.loc 1 439 5 is_stmt 1 view .LVU432
+ 439:App/src/app_freertos.c **** 
+ 1429              		.loc 1 439 8 is_stmt 0 view .LVU433
+ 1430 00ee 0128     		cmp	r0, #1
+ 1431 00f0 1DD1     		bne	.L83
+ 441:App/src/app_freertos.c ****                       TASK_PRIO_LOGGER, &xLoggerTaskHandle);
+ 1432              		.loc 1 441 5 is_stmt 1 view .LVU434
+ 441:App/src/app_freertos.c ****                       TASK_PRIO_LOGGER, &xLoggerTaskHandle);
+ 1433              		.loc 1 441 11 is_stmt 0 view .LVU435
+ 1434 00f2 0324     		movs	r4, #3
+ 1435 00f4 2648     		ldr	r0, .L87+88
+ 1436              	.LVL109:
+ 441:App/src/app_freertos.c ****                       TASK_PRIO_LOGGER, &xLoggerTaskHandle);
+ 1437              		.loc 1 441 11 view .LVU436
+ARM GAS  /tmp/ccPd8bFT.s 			page 41
+
+
+ 1438 00f6 0023     		movs	r3, #0
+ 1439 00f8 0190     		str	r0, [sp, #4]
+ 1440 00fa 4FF40072 		mov	r2, #512
+ 1441 00fe 2549     		ldr	r1, .L87+92
+ 1442 0100 2548     		ldr	r0, .L87+96
+ 1443 0102 0094     		str	r4, [sp]
+ 1444 0104 FFF7FEFF 		bl	xTaskCreate
+ 1445              	.LVL110:
+ 443:App/src/app_freertos.c **** 
+ 1446              		.loc 1 443 5 is_stmt 1 view .LVU437
+ 443:App/src/app_freertos.c **** 
+ 1447              		.loc 1 443 8 is_stmt 0 view .LVU438
+ 1448 0108 0128     		cmp	r0, #1
+ 1449 010a 10D1     		bne	.L83
+ 445:App/src/app_freertos.c ****                       TASK_PRIO_DIAG, &xDiagTaskHandle);
+ 1450              		.loc 1 445 5 is_stmt 1 view .LVU439
+ 445:App/src/app_freertos.c ****                       TASK_PRIO_DIAG, &xDiagTaskHandle);
+ 1451              		.loc 1 445 11 is_stmt 0 view .LVU440
+ 1452 010c 0224     		movs	r4, #2
+ 1453 010e 2348     		ldr	r0, .L87+100
+ 1454              	.LVL111:
+ 445:App/src/app_freertos.c ****                       TASK_PRIO_DIAG, &xDiagTaskHandle);
+ 1455              		.loc 1 445 11 view .LVU441
+ 1456 0110 0023     		movs	r3, #0
+ 1457 0112 0190     		str	r0, [sp, #4]
+ 1458 0114 4FF40072 		mov	r2, #512
+ 1459 0118 2149     		ldr	r1, .L87+104
+ 1460 011a 2248     		ldr	r0, .L87+108
+ 1461 011c 0094     		str	r4, [sp]
+ 1462 011e FFF7FEFF 		bl	xTaskCreate
+ 1463              	.LVL112:
+ 447:App/src/app_freertos.c **** 
+ 1464              		.loc 1 447 5 is_stmt 1 view .LVU442
+ 447:App/src/app_freertos.c **** 
+ 1465              		.loc 1 447 8 is_stmt 0 view .LVU443
+ 1466 0122 0128     		cmp	r0, #1
+ 450:App/src/app_freertos.c **** }
+ 1467              		.loc 1 450 12 view .LVU444
+ 1468 0124 08BF     		it	eq
+ 1469 0126 0020     		moveq	r0, #0
+ 1470              	.LVL113:
+ 447:App/src/app_freertos.c **** 
+ 1471              		.loc 1 447 8 view .LVU445
+ 1472 0128 01D1     		bne	.L83
+ 451:App/src/app_freertos.c **** 
+ 1473              		.loc 1 451 1 view .LVU446
+ 1474 012a 02B0     		add	sp, sp, #8
+ 1475              		.cfi_remember_state
+ 1476              		.cfi_def_cfa_offset 8
+ 1477              		@ sp needed
+ 1478 012c 10BD     		pop	{r4, pc}
+ 1479              	.L83:
+ 1480              		.cfi_restore_state
+ 447:App/src/app_freertos.c **** 
+ 1481              		.loc 1 447 24 is_stmt 1 discriminator 1 view .LVU447
+ 447:App/src/app_freertos.c **** 
+ 1482              		.loc 1 447 31 is_stmt 0 discriminator 1 view .LVU448
+ARM GAS  /tmp/ccPd8bFT.s 			page 42
+
+
+ 1483 012e 6FF00600 		mvn	r0, #6
+ 451:App/src/app_freertos.c **** 
+ 1484              		.loc 1 451 1 discriminator 1 view .LVU449
+ 1485 0132 02B0     		add	sp, sp, #8
+ 1486              		.cfi_def_cfa_offset 8
+ 1487              		@ sp needed
+ 1488 0134 10BD     		pop	{r4, pc}
+ 1489              	.L88:
+ 1490 0136 00BF     		.align	2
+ 1491              	.L87:
+ 1492 0138 00000000 		.word	.LANCHOR0
+ 1493 013c 00000000 		.word	.LANCHOR1
+ 1494 0140 00000000 		.word	.LANCHOR4
+ 1495 0144 00000000 		.word	.LANCHOR6
+ 1496 0148 00000000 		.word	.LANCHOR5
+ 1497 014c 00000000 		.word	.LANCHOR2
+ 1498 0150 00000000 		.word	.LANCHOR3
+ 1499 0154 00000000 		.word	.LANCHOR7
+ 1500 0158 00000000 		.word	.LC1
+ 1501 015c 00000000 		.word	vTaskCamera
+ 1502 0160 00000000 		.word	.LANCHOR8
+ 1503 0164 08000000 		.word	.LC2
+ 1504 0168 00000000 		.word	vTaskInference
+ 1505 016c 00000000 		.word	.LANCHOR9
+ 1506 0170 14000000 		.word	.LC3
+ 1507 0174 00000000 		.word	vTaskComm
+ 1508 0178 00000000 		.word	.LANCHOR10
+ 1509 017c 1C000000 		.word	.LC4
+ 1510 0180 00000000 		.word	vTaskSensor
+ 1511 0184 00000000 		.word	.LANCHOR11
+ 1512 0188 24000000 		.word	.LC5
+ 1513 018c 00000000 		.word	vTaskControl
+ 1514 0190 00000000 		.word	.LANCHOR12
+ 1515 0194 2C000000 		.word	.LC6
+ 1516 0198 00000000 		.word	vTaskLogger
+ 1517 019c 00000000 		.word	.LANCHOR13
+ 1518 01a0 34000000 		.word	.LC7
+ 1519 01a4 00000000 		.word	vTaskDiag
+ 1520              		.cfi_endproc
+ 1521              	.LFE818:
+ 1523              		.section	.text.app_freertos_start,"ax",%progbits
+ 1524              		.align	1
+ 1525              		.p2align 2,,3
+ 1526              		.global	app_freertos_start
+ 1527              		.syntax unified
+ 1528              		.thumb
+ 1529              		.thumb_func
+ 1530              		.fpu fpv5-d16
+ 1532              	app_freertos_start:
+ 1533              	.LFB819:
+ 457:App/src/app_freertos.c ****     /* 设置初始化完成标志 */
+ 1534              		.loc 1 457 1 is_stmt 1 view -0
+ 1535              		.cfi_startproc
+ 1536              		@ Volatile: function does not return.
+ 1537              		@ args = 0, pretend = 0, frame = 0
+ 1538              		@ frame_needed = 0, uses_anonymous_args = 0
+ 459:App/src/app_freertos.c **** 
+ARM GAS  /tmp/ccPd8bFT.s 			page 43
+
+
+ 1539              		.loc 1 459 5 view .LVU451
+ 457:App/src/app_freertos.c ****     /* 设置初始化完成标志 */
+ 1540              		.loc 1 457 1 is_stmt 0 view .LVU452
+ 1541 0000 08B5     		push	{r3, lr}
+ 1542              		.cfi_def_cfa_offset 8
+ 1543              		.cfi_offset 3, -8
+ 1544              		.cfi_offset 14, -4
+ 459:App/src/app_freertos.c **** 
+ 1545              		.loc 1 459 5 view .LVU453
+ 1546 0002 044B     		ldr	r3, .L92
+ 1547 0004 0121     		movs	r1, #1
+ 1548 0006 1868     		ldr	r0, [r3]
+ 1549 0008 FFF7FEFF 		bl	xEventGroupSetBits
+ 1550              	.LVL114:
+ 461:App/src/app_freertos.c ****     vTaskStartScheduler();
+ 1551              		.loc 1 461 5 is_stmt 1 view .LVU454
+ 462:App/src/app_freertos.c **** 
+ 1552              		.loc 1 462 5 view .LVU455
+ 1553 000c FFF7FEFF 		bl	vTaskStartScheduler
+ 1554              	.LVL115:
+ 1555              	.L90:
+ 465:App/src/app_freertos.c **** }
+ 1556              		.loc 1 465 5 discriminator 1 view .LVU456
+ 465:App/src/app_freertos.c **** }
+ 1557              		.loc 1 465 13 discriminator 1 view .LVU457
+ 465:App/src/app_freertos.c **** }
+ 1558              		.loc 1 465 11 discriminator 1 view .LVU458
+ 465:App/src/app_freertos.c **** }
+ 1559              		.loc 1 465 5 discriminator 1 view .LVU459
+ 465:App/src/app_freertos.c **** }
+ 1560              		.loc 1 465 13 discriminator 1 view .LVU460
+ 465:App/src/app_freertos.c **** }
+ 1561              		.loc 1 465 11 discriminator 1 view .LVU461
+ 1562 0010 FEE7     		b	.L90
+ 1563              	.L93:
+ 1564 0012 00BF     		.align	2
+ 1565              	.L92:
+ 1566 0014 00000000 		.word	.LANCHOR0
+ 1567              		.cfi_endproc
+ 1568              	.LFE819:
+ 1570              		.section	.text.vApplicationMallocFailedHook,"ax",%progbits
+ 1571              		.align	1
+ 1572              		.p2align 2,,3
+ 1573              		.global	vApplicationMallocFailedHook
+ 1574              		.syntax unified
+ 1575              		.thumb
+ 1576              		.thumb_func
+ 1577              		.fpu fpv5-d16
+ 1579              	vApplicationMallocFailedHook:
+ 1580              	.LFB823:
+ 503:App/src/app_freertos.c **** }
+ 504:App/src/app_freertos.c **** 
+ 505:App/src/app_freertos.c **** /* =============================================================================
+ 506:App/src/app_freertos.c ****  * 钩子函数
+ 507:App/src/app_freertos.c ****  * ==========================================================================*/
+ 508:App/src/app_freertos.c **** 
+ 509:App/src/app_freertos.c **** /**
+ARM GAS  /tmp/ccPd8bFT.s 			page 44
+
+
+ 510:App/src/app_freertos.c ****  * @brief  内存分配失败钩子
+ 511:App/src/app_freertos.c ****  */
+ 512:App/src/app_freertos.c **** void vApplicationMallocFailedHook(void)
+ 513:App/src/app_freertos.c **** {
+ 1581              		.loc 1 513 1 view -0
+ 1582              		.cfi_startproc
+ 1583              		@ Volatile: function does not return.
+ 1584              		@ args = 0, pretend = 0, frame = 0
+ 1585              		@ frame_needed = 0, uses_anonymous_args = 0
+ 514:App/src/app_freertos.c ****     LX_ERR_PRINT("Malloc failed!");
+ 1586              		.loc 1 514 5 view .LVU463
+ 515:App/src/app_freertos.c ****     taskDISABLE_INTERRUPTS();
+ 1587              		.loc 1 515 5 view .LVU464
+ 513:App/src/app_freertos.c ****     LX_ERR_PRINT("Malloc failed!");
+ 1588              		.loc 1 513 1 is_stmt 0 view .LVU465
+ 1589 0000 08B5     		push	{r3, lr}
+ 1590              		.cfi_def_cfa_offset 8
+ 1591              		.cfi_offset 3, -8
+ 1592              		.cfi_offset 14, -4
+ 1593              		.loc 1 515 5 view .LVU466
+ 1594 0002 FFF7FEFF 		bl	ulSetInterruptMask
+ 1595              	.LVL116:
+ 1596              	.L95:
+ 516:App/src/app_freertos.c ****     for (;;);
+ 1597              		.loc 1 516 5 is_stmt 1 discriminator 1 view .LVU467
+ 1598              		.loc 1 516 13 discriminator 1 view .LVU468
+ 1599              		.loc 1 516 11 discriminator 1 view .LVU469
+ 1600              		.loc 1 516 5 discriminator 1 view .LVU470
+ 1601              		.loc 1 516 13 discriminator 1 view .LVU471
+ 1602              		.loc 1 516 11 discriminator 1 view .LVU472
+ 1603 0006 FEE7     		b	.L95
+ 1604              		.cfi_endproc
+ 1605              	.LFE823:
+ 1607              		.section	.text.vApplicationStackOverflowHook,"ax",%progbits
+ 1608              		.align	1
+ 1609              		.p2align 2,,3
+ 1610              		.global	vApplicationStackOverflowHook
+ 1611              		.syntax unified
+ 1612              		.thumb
+ 1613              		.thumb_func
+ 1614              		.fpu fpv5-d16
+ 1616              	vApplicationStackOverflowHook:
+ 1617              	.LVL117:
+ 1618              	.LFB824:
+ 517:App/src/app_freertos.c **** }
+ 518:App/src/app_freertos.c **** 
+ 519:App/src/app_freertos.c **** /**
+ 520:App/src/app_freertos.c ****  * @brief  堆栈溢出钩子
+ 521:App/src/app_freertos.c ****  */
+ 522:App/src/app_freertos.c **** void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+ 523:App/src/app_freertos.c **** {
+ 1619              		.loc 1 523 1 view -0
+ 1620              		.cfi_startproc
+ 1621              		@ Volatile: function does not return.
+ 1622              		@ args = 0, pretend = 0, frame = 0
+ 1623              		@ frame_needed = 0, uses_anonymous_args = 0
+ 524:App/src/app_freertos.c ****     LX_ERR_PRINT("Stack overflow: %s", pcTaskName);
+ARM GAS  /tmp/ccPd8bFT.s 			page 45
+
+
+ 1624              		.loc 1 524 5 view .LVU474
+ 525:App/src/app_freertos.c ****     taskDISABLE_INTERRUPTS();
+ 1625              		.loc 1 525 5 view .LVU475
+ 523:App/src/app_freertos.c ****     LX_ERR_PRINT("Stack overflow: %s", pcTaskName);
+ 1626              		.loc 1 523 1 is_stmt 0 view .LVU476
+ 1627 0000 08B5     		push	{r3, lr}
+ 1628              		.cfi_def_cfa_offset 8
+ 1629              		.cfi_offset 3, -8
+ 1630              		.cfi_offset 14, -4
+ 1631              		.loc 1 525 5 view .LVU477
+ 1632 0002 FFF7FEFF 		bl	ulSetInterruptMask
+ 1633              	.LVL118:
+ 1634              	.L98:
+ 526:App/src/app_freertos.c ****     for (;;);
+ 1635              		.loc 1 526 5 is_stmt 1 discriminator 1 view .LVU478
+ 1636              		.loc 1 526 13 discriminator 1 view .LVU479
+ 1637              		.loc 1 526 11 discriminator 1 view .LVU480
+ 1638              		.loc 1 526 5 discriminator 1 view .LVU481
+ 1639              		.loc 1 526 13 discriminator 1 view .LVU482
+ 1640              		.loc 1 526 11 discriminator 1 view .LVU483
+ 1641 0006 FEE7     		b	.L98
+ 1642              		.cfi_endproc
+ 1643              	.LFE824:
+ 1645              		.section	.text.vApplicationIdleHook,"ax",%progbits
+ 1646              		.align	1
+ 1647              		.p2align 2,,3
+ 1648              		.global	vApplicationIdleHook
+ 1649              		.syntax unified
+ 1650              		.thumb
+ 1651              		.thumb_func
+ 1652              		.fpu fpv5-d16
+ 1654              	vApplicationIdleHook:
+ 1655              	.LFB825:
+ 527:App/src/app_freertos.c **** }
+ 528:App/src/app_freertos.c **** 
+ 529:App/src/app_freertos.c **** /**
+ 530:App/src/app_freertos.c ****  * @brief  空闲钩子
+ 531:App/src/app_freertos.c ****  */
+ 532:App/src/app_freertos.c **** void vApplicationIdleHook(void)
+ 533:App/src/app_freertos.c **** {
+ 1656              		.loc 1 533 1 view -0
+ 1657              		.cfi_startproc
+ 1658              		@ args = 0, pretend = 0, frame = 0
+ 1659              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1660              		@ link register save eliminated.
+ 534:App/src/app_freertos.c ****     /* 可进入低功耗模式 */
+ 535:App/src/app_freertos.c ****     /* __WFI(); */
+ 536:App/src/app_freertos.c **** }
+ 1661              		.loc 1 536 1 view .LVU485
+ 1662 0000 7047     		bx	lr
+ 1663              		.cfi_endproc
+ 1664              	.LFE825:
+ 1666              		.global	xDiagTaskHandle
+ 1667              		.global	xLoggerTaskHandle
+ 1668              		.global	xControlTaskHandle
+ 1669              		.global	xSensorTaskHandle
+ 1670              		.global	xCommTaskHandle
+ARM GAS  /tmp/ccPd8bFT.s 			page 46
+
+
+ 1671              		.global	xInferenceTaskHandle
+ 1672              		.global	xCameraTaskHandle
+ 1673              		.global	g_system_event_group
+ 1674 0002 00BF     		.section	.bss.g_system_event_group,"aw",%nobits
+ 1675              		.align	2
+ 1676              		.set	.LANCHOR0,. + 0
+ 1679              	g_system_event_group:
+ 1680 0000 00000000 		.space	4
+ 1681              		.section	.bss.s_mutex_npu,"aw",%nobits
+ 1682              		.align	2
+ 1683              		.set	.LANCHOR3,. + 0
+ 1686              	s_mutex_npu:
+ 1687 0000 00000000 		.space	4
+ 1688              		.section	.bss.s_queue_cam_frames,"aw",%nobits
+ 1689              		.align	2
+ 1690              		.set	.LANCHOR1,. + 0
+ 1693              	s_queue_cam_frames:
+ 1694 0000 00000000 		.space	4
+ 1695              		.section	.bss.s_queue_ctrl_cmds,"aw",%nobits
+ 1696              		.align	2
+ 1697              		.set	.LANCHOR5,. + 0
+ 1700              	s_queue_ctrl_cmds:
+ 1701 0000 00000000 		.space	4
+ 1702              		.section	.bss.s_queue_infer_results,"aw",%nobits
+ 1703              		.align	2
+ 1704              		.set	.LANCHOR4,. + 0
+ 1707              	s_queue_infer_results:
+ 1708 0000 00000000 		.space	4
+ 1709              		.section	.bss.s_queue_log,"aw",%nobits
+ 1710              		.align	2
+ 1711              		.set	.LANCHOR2,. + 0
+ 1714              	s_queue_log:
+ 1715 0000 00000000 		.space	4
+ 1716              		.section	.bss.s_queue_sensor_data,"aw",%nobits
+ 1717              		.align	2
+ 1718              		.set	.LANCHOR6,. + 0
+ 1721              	s_queue_sensor_data:
+ 1722 0000 00000000 		.space	4
+ 1723              		.section	.bss.xCameraTaskHandle,"aw",%nobits
+ 1724              		.align	2
+ 1725              		.set	.LANCHOR7,. + 0
+ 1728              	xCameraTaskHandle:
+ 1729 0000 00000000 		.space	4
+ 1730              		.section	.bss.xCommTaskHandle,"aw",%nobits
+ 1731              		.align	2
+ 1732              		.set	.LANCHOR9,. + 0
+ 1735              	xCommTaskHandle:
+ 1736 0000 00000000 		.space	4
+ 1737              		.section	.bss.xControlTaskHandle,"aw",%nobits
+ 1738              		.align	2
+ 1739              		.set	.LANCHOR11,. + 0
+ 1742              	xControlTaskHandle:
+ 1743 0000 00000000 		.space	4
+ 1744              		.section	.bss.xDiagTaskHandle,"aw",%nobits
+ 1745              		.align	2
+ 1746              		.set	.LANCHOR13,. + 0
+ 1749              	xDiagTaskHandle:
+ARM GAS  /tmp/ccPd8bFT.s 			page 47
+
+
+ 1750 0000 00000000 		.space	4
+ 1751              		.section	.bss.xInferenceTaskHandle,"aw",%nobits
+ 1752              		.align	2
+ 1753              		.set	.LANCHOR8,. + 0
+ 1756              	xInferenceTaskHandle:
+ 1757 0000 00000000 		.space	4
+ 1758              		.section	.bss.xLoggerTaskHandle,"aw",%nobits
+ 1759              		.align	2
+ 1760              		.set	.LANCHOR12,. + 0
+ 1763              	xLoggerTaskHandle:
+ 1764 0000 00000000 		.space	4
+ 1765              		.section	.bss.xSensorTaskHandle,"aw",%nobits
+ 1766              		.align	2
+ 1767              		.set	.LANCHOR10,. + 0
+ 1770              	xSensorTaskHandle:
+ 1771 0000 00000000 		.space	4
+ 1772              		.text
+ 1773              	.Letext0:
+ 1774              		.file 2 "/usr/lib/gcc/arm-none-eabi/10.3.1/include/stdint.h"
+ 1775              		.file 3 "App/inc/lingxi_bl.h"
+ 1776              		.file 4 "Core/Inc/portmacrocommon.h"
+ 1777              		.file 5 "Core/Inc/task.h"
+ 1778              		.file 6 "Core/Inc/event_groups.h"
+ 1779              		.file 7 "App/inc/app_freertos.h"
+ 1780              		.file 8 "App/inc/bsp_tof.h"
+ 1781              		.file 9 "App/inc/bsp_uwb.h"
+ 1782              		.file 10 "App/inc/bsp_sdio.h"
+ 1783              		.file 11 "App/inc/app_npu.h"
+ 1784              		.file 12 "App/inc/app_fusion.h"
+ 1785              		.file 13 "App/inc/app_control.h"
+ 1786              		.file 14 "Core/Inc/queue.h"
+ 1787              		.file 15 "Core/Inc/semphr.h"
+ 1788              		.file 16 "/usr/include/newlib/stdio.h"
+ 1789              		.file 17 "Core/Inc/portable.h"
+ 1790              		.file 18 "<built-in>"
+ 1791              		.file 19 "App/inc/bsp_mipi_csi.h"
+ARM GAS  /tmp/ccPd8bFT.s 			page 48
+
+
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 app_freertos.c
+     /tmp/ccPd8bFT.s:22     .text.vTaskCamera:0000000000000000 $t
+     /tmp/ccPd8bFT.s:35     .text.vTaskCamera:0000000000000000 vTaskCamera
+     /tmp/ccPd8bFT.s:118    .text.vTaskCamera:0000000000000050 $d
+     /tmp/ccPd8bFT.s:125    .text.vTaskLogger:0000000000000000 $t
+     /tmp/ccPd8bFT.s:133    .text.vTaskLogger:0000000000000000 vTaskLogger
+     /tmp/ccPd8bFT.s:202    .text.vTaskLogger:0000000000000044 $d
+     /tmp/ccPd8bFT.s:208    .text.vTaskInference:0000000000000000 $t
+     /tmp/ccPd8bFT.s:216    .text.vTaskInference:0000000000000000 vTaskInference
+     /tmp/ccPd8bFT.s:368    .text.vTaskInference:00000000000000b0 $d
+     /tmp/ccPd8bFT.s:377    .text.vTaskComm:0000000000000000 $t
+     /tmp/ccPd8bFT.s:385    .text.vTaskComm:0000000000000000 vTaskComm
+     /tmp/ccPd8bFT.s:563    .text.vTaskComm:00000000000000e4 $d
+     /tmp/ccPd8bFT.s:570    .text.vTaskSensor:0000000000000000 $t
+     /tmp/ccPd8bFT.s:578    .text.vTaskSensor:0000000000000000 vTaskSensor
+     /tmp/ccPd8bFT.s:715    .text.vTaskSensor:000000000000009c $d
+     /tmp/ccPd8bFT.s:721    .text.vTaskControl:0000000000000000 $t
+     /tmp/ccPd8bFT.s:729    .text.vTaskControl:0000000000000000 vTaskControl
+     /tmp/ccPd8bFT.s:906    .text.vTaskControl:00000000000000e0 $d
+     /tmp/ccPd8bFT.s:914    .rodata.vTaskDiag.str1.4:0000000000000000 $d
+     /tmp/ccPd8bFT.s:919    .text.vTaskDiag:0000000000000000 $t
+     /tmp/ccPd8bFT.s:927    .text.vTaskDiag:0000000000000000 vTaskDiag
+     /tmp/ccPd8bFT.s:1140   .text.vTaskDiag:0000000000000104 $d
+     /tmp/ccPd8bFT.s:1155   .rodata.app_freertos_init.str1.4:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1177   .text.app_freertos_init:0000000000000000 $t
+     /tmp/ccPd8bFT.s:1185   .text.app_freertos_init:0000000000000000 app_freertos_init
+     /tmp/ccPd8bFT.s:1492   .text.app_freertos_init:0000000000000138 $d
+     /tmp/ccPd8bFT.s:1524   .text.app_freertos_start:0000000000000000 $t
+     /tmp/ccPd8bFT.s:1532   .text.app_freertos_start:0000000000000000 app_freertos_start
+     /tmp/ccPd8bFT.s:1566   .text.app_freertos_start:0000000000000014 $d
+     /tmp/ccPd8bFT.s:1571   .text.vApplicationMallocFailedHook:0000000000000000 $t
+     /tmp/ccPd8bFT.s:1579   .text.vApplicationMallocFailedHook:0000000000000000 vApplicationMallocFailedHook
+     /tmp/ccPd8bFT.s:1608   .text.vApplicationStackOverflowHook:0000000000000000 $t
+     /tmp/ccPd8bFT.s:1616   .text.vApplicationStackOverflowHook:0000000000000000 vApplicationStackOverflowHook
+     /tmp/ccPd8bFT.s:1646   .text.vApplicationIdleHook:0000000000000000 $t
+     /tmp/ccPd8bFT.s:1654   .text.vApplicationIdleHook:0000000000000000 vApplicationIdleHook
+     /tmp/ccPd8bFT.s:1749   .bss.xDiagTaskHandle:0000000000000000 xDiagTaskHandle
+     /tmp/ccPd8bFT.s:1763   .bss.xLoggerTaskHandle:0000000000000000 xLoggerTaskHandle
+     /tmp/ccPd8bFT.s:1742   .bss.xControlTaskHandle:0000000000000000 xControlTaskHandle
+     /tmp/ccPd8bFT.s:1770   .bss.xSensorTaskHandle:0000000000000000 xSensorTaskHandle
+     /tmp/ccPd8bFT.s:1735   .bss.xCommTaskHandle:0000000000000000 xCommTaskHandle
+     /tmp/ccPd8bFT.s:1756   .bss.xInferenceTaskHandle:0000000000000000 xInferenceTaskHandle
+     /tmp/ccPd8bFT.s:1728   .bss.xCameraTaskHandle:0000000000000000 xCameraTaskHandle
+     /tmp/ccPd8bFT.s:1679   .bss.g_system_event_group:0000000000000000 g_system_event_group
+     /tmp/ccPd8bFT.s:1675   .bss.g_system_event_group:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1682   .bss.s_mutex_npu:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1686   .bss.s_mutex_npu:0000000000000000 s_mutex_npu
+     /tmp/ccPd8bFT.s:1689   .bss.s_queue_cam_frames:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1693   .bss.s_queue_cam_frames:0000000000000000 s_queue_cam_frames
+     /tmp/ccPd8bFT.s:1696   .bss.s_queue_ctrl_cmds:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1700   .bss.s_queue_ctrl_cmds:0000000000000000 s_queue_ctrl_cmds
+     /tmp/ccPd8bFT.s:1703   .bss.s_queue_infer_results:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1707   .bss.s_queue_infer_results:0000000000000000 s_queue_infer_results
+     /tmp/ccPd8bFT.s:1710   .bss.s_queue_log:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1714   .bss.s_queue_log:0000000000000000 s_queue_log
+     /tmp/ccPd8bFT.s:1717   .bss.s_queue_sensor_data:0000000000000000 $d
+ARM GAS  /tmp/ccPd8bFT.s 			page 49
+
+
+     /tmp/ccPd8bFT.s:1721   .bss.s_queue_sensor_data:0000000000000000 s_queue_sensor_data
+     /tmp/ccPd8bFT.s:1724   .bss.xCameraTaskHandle:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1731   .bss.xCommTaskHandle:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1738   .bss.xControlTaskHandle:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1745   .bss.xDiagTaskHandle:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1752   .bss.xInferenceTaskHandle:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1759   .bss.xLoggerTaskHandle:0000000000000000 $d
+     /tmp/ccPd8bFT.s:1766   .bss.xSensorTaskHandle:0000000000000000 $d
+
+UNDEFINED SYMBOLS
+xEventGroupWaitBits
+bsp_mipi_csi_start
+xTaskGetTickCount
+xTaskDelayUntil
+bsp_mipi_csi_get_frame
+xQueueGenericSend
+bsp_mipi_csi_release_frame
+memset
+xQueueReceive
+xQueueSemaphoreTake
+app_npu_preprocess
+app_npu_run
+xEventGroupSetBits
+bsp_sdio_send_packet
+memcpy
+bsp_tof_get_measurement
+bsp_uwb_get_ranging_data
+app_fusion_update
+app_control_update
+xPortGetFreeHeapSize
+uxTaskGetNumberOfTasks
+uxTaskGetStackHighWaterMark
+snprintf
+xEventGroupCreate
+xQueueGenericCreate
+xQueueCreateMutex
+xTaskCreate
+vTaskStartScheduler
+ulSetInterruptMask

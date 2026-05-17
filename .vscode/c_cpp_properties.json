@@ -1,0 +1,46 @@
+{
+  "configurations": [
+    {
+      "name": "STM32N6",
+      "includePath": [
+        "${workspaceFolder}/stm32/Core/Inc",
+        "${workspaceFolder}/stm32/Drivers/STM32N6xx_HAL_Driver/Inc",
+        "${workspaceFolder}/stm32/Drivers/CMSIS/Include",
+        "${workspaceFolder}/stm32/Drivers/CMSIS/Device/ST/STM32N6xx/Include",
+        "${workspaceFolder}/stm32/Middlewares/FreeRTOS/include",
+        "${workspaceFolder}/stm32/App/inc",
+        "${workspaceFolder}/shared/protocol",
+        "${workspaceFolder}/shared/utils"
+      ],
+      "defines": [
+        "STM32N657xx",
+        "USE_HAL_DRIVER",
+        "DEBUG"
+      ],
+      "compilerPath": "/usr/bin/arm-none-eabi-gcc",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "gcc-arm",
+      "configurationProvider": "ms-vscode.cmake-tools"
+    },
+    {
+      "name": "ESP32-C6",
+      "includePath": [
+        "${workspaceFolder}/esp32/main",
+        "${workspaceFolder}/esp32/components/sdio_slave",
+        "${workspaceFolder}/esp32/components/wifi_manager",
+        "${workspaceFolder}/esp32/components/protocol",
+        "${workspaceFolder}/shared/protocol",
+        "${workspaceFolder}/shared/utils"
+      ],
+      "defines": [
+        "CONFIG_IDF_TARGET_ESP32C6"
+      ],
+      "compilerPath": "${env:IDF_PATH}/tools/xtensa-esp-elf/bin/xtensa-esp32-elf-gcc",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "gcc-x86"
+    }
+  ],
+  "version": 4
+}

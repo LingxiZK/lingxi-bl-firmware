@@ -1,0 +1,2074 @@
+ARM GAS  /tmp/cclWbXVM.s 			page 1
+
+
+   1              		.arch armv8.1-m.main
+   2              		.arch_extension dsp
+   3              		.arch_extension fp
+   4              		.arch_extension fp.dp
+   5              		.arch_extension mve
+   6              		.eabi_attribute 28, 1
+   7              		.eabi_attribute 20, 1
+   8              		.eabi_attribute 21, 1
+   9              		.eabi_attribute 23, 3
+  10              		.eabi_attribute 24, 1
+  11              		.eabi_attribute 25, 1
+  12              		.eabi_attribute 26, 1
+  13              		.eabi_attribute 30, 2
+  14              		.eabi_attribute 34, 1
+  15              		.eabi_attribute 38, 1
+  16              		.eabi_attribute 18, 4
+  17              		.file	"app_fusion.c"
+  18              		.text
+  19              	.Ltext0:
+  20              		.cfi_sections	.debug_frame
+  21              		.section	.text.app_fusion_init,"ax",%progbits
+  22              		.align	1
+  23              		.p2align 2,,3
+  24              		.global	app_fusion_init
+  25              		.arch armv8.1-m.main
+  26              		.arch_extension dsp
+  27              		.arch_extension fp
+  28              		.arch_extension fp.dp
+  29              		.arch_extension mve
+  30              		.syntax unified
+  31              		.thumb
+  32              		.thumb_func
+  33              		.fpu fpv5-d16
+  35              	app_fusion_init:
+  36              	.LFB811:
+  37              		.file 1 "App/src/app_fusion.c"
+   1:App/src/app_fusion.c **** /**
+   2:App/src/app_fusion.c ****  *  ******************************************************************************
+   3:App/src/app_fusion.c ****  *  * @file    app_fusion.c
+   4:App/src/app_fusion.c ****  *  * @brief   传感器融合实现 (ToF + UWB + 视觉, 卡尔曼滤波, 双缓冲无锁设计)
+   5:App/src/app_fusion.c ****  *  * @author  Lingxi Team
+   6:App/src/app_fusion.c ****  *  * @version v4.0
+   7:App/src/app_fusion.c ****  *  * @date    2026-05-17
+   8:App/src/app_fusion.c ****  *  ******************************************************************************
+   9:App/src/app_fusion.c ****  *  * @attention
+  10:App/src/app_fusion.c ****  *  * - 零拷贝设计: 通过双缓冲 + 版本号校验，消除 get_result 中的长时间临�
+  11:App/src/app_fusion.c ****  *  * - 性能优化: 使用 CMSIS-DSP (SIMD) 加速矩阵运算；针对标量测量使用 Rank-1 
+  12:App/src/app_fusion.c ****  *  ******************************************************************************
+  13:App/src/app_fusion.c ****  *  */
+  14:App/src/app_fusion.c **** 
+  15:App/src/app_fusion.c **** #include "app_fusion.h"
+  16:App/src/app_fusion.c **** #include <string.h>
+  17:App/src/app_fusion.c **** #include <math.h>
+  18:App/src/app_fusion.c **** #include "stm32n6xx_hal.h"
+  19:App/src/app_fusion.c **** #include "FreeRTOS.h"
+  20:App/src/app_fusion.c **** #include "task.h"
+  21:App/src/app_fusion.c **** 
+ARM GAS  /tmp/cclWbXVM.s 			page 2
+
+
+  22:App/src/app_fusion.c **** /* =============================================================================
+  23:App/src/app_fusion.c ****  * 私有变量
+  24:App/src/app_fusion.c ****  * ==========================================================================*/
+  25:App/src/app_fusion.c **** static volatile uint8_t s_fusion_initialized = 0;
+  26:App/src/app_fusion.c **** 
+  27:App/src/app_fusion.c **** /* 双缓冲设计：s_fusion_bufs[s_active_idx] 为当前可供外部读取的有效快照 */
+  28:App/src/app_fusion.c **** static sensor_fusion_data_t s_fusion_bufs[2] = {0};
+  29:App/src/app_fusion.c **** static volatile uint8_t s_active_idx = 0;      /* 当前有效快照索引 */
+  30:App/src/app_fusion.c **** static volatile uint32_t s_version = 0;       /* 版本计数器，用于读写校验 (Optimistic L
+  31:App/src/app_fusion.c **** 
+  32:App/src/app_fusion.c **** static kalman_state_t s_kf_state = {0};
+  33:App/src/app_fusion.c **** 
+  34:App/src/app_fusion.c **** /* 卡尔曼参数 */
+  35:App/src/app_fusion.c **** static float s_Q[6][6] = {0};     /* 过程噪声矩阵 */
+  36:App/src/app_fusion.c **** static float s_R[3] = {0};        /* 测量噪声 (0=ToF, 1=UWB, 2=Vision) */
+  37:App/src/app_fusion.c **** 
+  38:App/src/app_fusion.c **** /* =============================================================================
+  39:App/src/app_fusion.c ****  * 私有函数声明
+  40:App/src/app_fusion.c ****  * ==========================================================================*/
+  41:App/src/app_fusion.c **** static void kalman_init(void);
+  42:App/src/app_fusion.c **** 
+  43:App/src/app_fusion.c **** /* =============================================================================
+  44:App/src/app_fusion.c ****  * API 实现
+  45:App/src/app_fusion.c ****  * ==========================================================================*/
+  46:App/src/app_fusion.c **** 
+  47:App/src/app_fusion.c **** /**
+  48:App/src/app_fusion.c ****  * @brief  初始化传感器融合模块
+  49:App/src/app_fusion.c ****  */
+  50:App/src/app_fusion.c **** lingxi_err_t app_fusion_init(void)
+  51:App/src/app_fusion.c **** {
+  38              		.loc 1 51 1 view -0
+  39              		.cfi_startproc
+  40              		@ args = 0, pretend = 0, frame = 0
+  41              		@ frame_needed = 0, uses_anonymous_args = 0
+  52:App/src/app_fusion.c ****     kalman_init();
+  42              		.loc 1 52 5 view .LVU1
+  43              	.LBB8:
+  44              	.LBI8:
+  53:App/src/app_fusion.c **** 
+  54:App/src/app_fusion.c ****     /* 初始化双缓冲 */
+  55:App/src/app_fusion.c ****     memset(s_fusion_bufs, 0, sizeof(s_fusion_bufs));
+  56:App/src/app_fusion.c ****     s_active_idx = 0;
+  57:App/src/app_fusion.c ****     s_version = 0;
+  58:App/src/app_fusion.c ****     s_fusion_initialized = 1;
+  59:App/src/app_fusion.c **** 
+  60:App/src/app_fusion.c ****     LX_DEBUG_PRINT("Sensor fusion initialized (Zero-copy Double Buffering)");
+  61:App/src/app_fusion.c ****     return LINGXI_OK;
+  62:App/src/app_fusion.c **** }
+  63:App/src/app_fusion.c **** 
+  64:App/src/app_fusion.c **** /**
+  65:App/src/app_fusion.c ****  * @brief  更新传感器数据并执行融合 (写端)
+  66:App/src/app_fusion.c ****  * @note   此函数运行在感知任务中，负责计算并更新“后台”缓冲区。
+  67:App/src/app_fusion.c ****  */
+  68:App/src/app_fusion.c **** lingxi_err_t app_fusion_update(sensor_fusion_data_t *data)
+  69:App/src/app_fusion.c **** {
+  70:App/src/app_fusion.c ****     if (data == NULL) return LINGXI_ERR_INVALID_PARAM;
+  71:App/src/app_fusion.c ****     if (!s_fusion_initialized) return LINGXI_ERR_NOT_INIT;
+ARM GAS  /tmp/cclWbXVM.s 			page 3
+
+
+  72:App/src/app_fusion.c **** 
+  73:App/src/app_fusion.c ****     /* 1. 准备本次更新的局部结果 */
+  74:App/src/app_fusion.c ****     sensor_fusion_data_t local_res = *data;
+  75:App/src/app_fusion.c **** 
+  76:App/src/app_fusion.c ****     /* 2. 执行卡尔曼预测 (x = Fx, P = FPF' + Q) */
+  77:App/src/app_fusion.c ****     /* 注：dt 由任务调度频率决定，这里假设由外部调用逻辑保证准确性或�
+  78:App/src/app_fusion.c ****     /* 实际应用中建议在 app_fusion_update 内部根据上次 timestamp 计算 dt */
+  79:App/src/app_fusion.c ****     static uint32_t last_tick = 0;
+  80:App/src/app_fusion.c ****     uint32_t current_tick = HAL_GetTick();
+  81:App/src/app_fusion.c ****     uint32_t dt_ms = (last_tick == 0) ? 10 : (current_tick - last_tick);
+  82:App/src/app_fusion.c ****     last_tick = current_tick;
+  83:App/src/app_fusion.c **** 
+  84:App/src/app_fusion.c ****     app_fusion_kalman_predict(dt_ms);
+  85:App/src/app_fusion.c **** 
+  86:App/src/app_fusion.c ****     /* 3. 执行卡尔曼更新 (针对每个有效传感器) */
+  87:App/src/app_fusion.c ****     if (data->tof_valid) {
+  88:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->tof_distance_mm, 0);
+  89:App/src/app_fusion.c ****     }
+  90:App/src/app_fusion.c ****     if (data->uwb_valid) {
+  91:App/src/app_fusion.c ****         app_fusion_kalman_update(data->uwb_distance_m * 1000.0f, 1);
+  92:App/src/app_fusion.c ****     }
+  93:App/src/app_fusion.c ****     if (data->vision_valid) {
+  94:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->vision_distance_mm, 2);
+  95:App/src/app_fusion.c ****     }
+  96:App/src/app_fusion.c **** 
+  97:App/src/app_fusion.c ****     /* 4. 封装计算结果 */
+  98:App/src/app_fusion.c ****     local_res.fused_distance_mm = s_kf_state.z;
+  99:App/src/app_fusion.c ****     
+ 100:App/src/app_fusion.c ****     uint8_t valid_count = (data->tof_valid ? 1 : 0) + 
+ 101:App/src/app_fusion.c ****                           (data->uwb_valid ? 1 : 0) + 
+ 102:App/src/app_fusion.c ****                           (data->vision_valid ? 1 : 0);
+ 103:App/src/app_fusion.c ****     local_res.confidence = (valid_count > 0) ? ((float)valid_count / 3.0f) : 0.0f;
+ 104:App/src/app_fusion.c ****     local_res.timestamp_ms = current_tick;
+ 105:App/src/app_fusion.c **** 
+ 106:App/src/app_fusion.c ****     /* 5. 【核心：双缓冲切换】将结果写入“非活跃”缓冲区 */
+ 107:App/src/app_fusion.c ****     uint8_t write_idx = 1 - s_active_idx;
+ 108:App/src/app_fusion.c ****     
+ 109:App/src/app_fusion.c ****     /* 增加版本号，表示正在进行写操作 (防止读端在此时读取到中间态) */
+ 110:App/src/app_fusion.c ****     s_version++; 
+ 111:App/src/app_fusion.c ****     
+ 112:App/src/app_fusion.c ****     memcpy(&s_fusion_bufs[write_idx], &local_res, sizeof(sensor_fusion_data_t));
+ 113:App/src/app_fusion.c ****     
+ 114:App/src/app_fusion.c ****     /* 原子切换索引并增加版本号 */
+ 115:App/src/app_fusion.c ****     s_active_idx = write_idx;
+ 116:App/src/app_fusion.c ****     s_version++;
+ 117:App/src/app_fusion.c **** 
+ 118:App/src/app_fusion.c ****     /* 6. 同步返回给调用者 */
+ 119:App/src/app_fusion.c ****     *data = local_res;
+ 120:App/src/app_fusion.c **** 
+ 121:App/src/app_fusion.c ****     return LINGXI_OK;
+ 122:App/src/app_fusion.c **** }
+ 123:App/src/app_fusion.c **** 
+ 124:App/src/app_fusion.c **** /**
+ 125:App/src/app_fusion.c ****  * @brief  获取融合结果 (读端 - 无锁版本)
+ 126:App/src/app_fusion.c ****  * @note   采用 Optimistic Locking (版本号校验)，避免使用 taskENTER_CRITICAL 导致的�
+ 127:App/src/app_fusion.c ****  */
+ 128:App/src/app_fusion.c **** lingxi_err_t app_fusion_get_result(sensor_fusion_data_t *data)
+ARM GAS  /tmp/cclWbXVM.s 			page 4
+
+
+ 129:App/src/app_fusion.c **** {
+ 130:App/src/app_fusion.c ****     if (data == NULL) return LINGXI_ERR_INVALID_PARAM;
+ 131:App/src/app_fusion.c ****     if (!s_fusion_initialized) return LINGXI_ERR_NOT_INIT;
+ 132:App/src/app_fusion.c **** 
+ 133:App/src/app_fusion.c ****     uint32_t v1, v2;
+ 134:App/src/app_fusion.c ****     uint8_t idx;
+ 135:App/src/app_fusion.c **** 
+ 136:App/src/app_fusion.c ****     /* 乐观锁重试机制 */
+ 137:App/src/app_fusion.c ****     int retry_count = 0;
+ 138:App/src/app_fusion.c ****     const int max_retries = 3;
+ 139:App/src/app_fusion.c **** 
+ 140:App/src/app_fusion.c ****     do {
+ 141:App/src/app_fusion.c ****         v1 = s_version;          // 记录开始读取前的版本
+ 142:App/src/app_fusion.c ****         idx = s_active_idx;      // 获取当前活跃索引
+ 143:App/src/app_fusion.c ****         
+ 144:App/src/app_fusion.c ****         memcpy(data, &s_fusion_bufs[idx], sizeof(sensor_fusion_data_t));
+ 145:App/src/app_fusion.c ****         
+ 146:App/src/app_fusion.c ****         v2 = s_version;          // 记录读取后的版本
+ 147:App/src/app_fusion.c ****         
+ 148:App/src/app_fusion.c ****         if (v1 == v2) {
+ 149:App/src/app_fusion.c ****             /* 版本未变，说明读取过程中没有发生写操作，数据一致性保证 */
+ 150:App/src/app_fusion.c ****             return LINGXI_OK;
+ 151:App/src/app_fusion.c ****         }
+ 152:App/src/app_fusion.c ****         
+ 153:App/src/app_fusion.c ****         retry_count++;
+ 154:App/src/app_fusion.c ****     } while (retry_count < max_retries);
+ 155:App/src/app_fusion.c **** 
+ 156:App/src/app_fusion.c ****     /* 如果重试失败，退回到传统的临界区保护，确保鲁棒性 */
+ 157:App/src/app_fusion.c ****     taskENTER_CRITICAL();
+ 158:App/src/app_fusion.c ****     idx = s_active_idx;
+ 159:App/src/app_fusion.c ****     memcpy(data, &s_fusion_bufs[idx], sizeof(sensor_fusion_data_t));
+ 160:App/src/app_fusion.c ****     taskEXIT_CRITICAL();
+ 161:App/src/app_fusion.c **** 
+ 162:App/src/app_fusion.c ****     return LINGXI_OK;
+ 163:App/src/app_fusion.c **** }
+ 164:App/src/app_fusion.c **** 
+ 165:App/src/app_fusion.c **** /* =============================================================================
+ 166:App/src/app_fusion.c ****  * 私有函数实现
+ 167:App/src/app_fusion.c ****  * ==========================================================================*/
+ 168:App/src/app_fusion.c **** 
+ 169:App/src/app_fusion.c **** /**
+ 170:App/src/app_fusion.c ****  * @brief  卡尔曼初始化
+ 171:App/src/app_fusion.c ****  */
+ 172:App/src/app_fusion.c **** static void kalman_init(void)
+  45              		.loc 1 172 13 view .LVU2
+  46              	.LBB9:
+ 173:App/src/app_fusion.c **** {
+ 174:App/src/app_fusion.c ****     /* 状态初始化 [x, y, z, vx, vy, vz] */
+ 175:App/src/app_fusion.c ****     memset(&s_kf_state, 0, sizeof(kalman_state_t));
+  47              		.loc 1 175 5 view .LVU3
+  48 0000 0021     		movs	r1, #0
+  49 0002 A822     		movs	r2, #168
+  50              	.LBE9:
+  51              	.LBE8:
+  51:App/src/app_fusion.c ****     kalman_init();
+  52              		.loc 1 51 1 is_stmt 0 view .LVU4
+  53 0004 10B5     		push	{r4, lr}
+ARM GAS  /tmp/cclWbXVM.s 			page 5
+
+
+  54              		.cfi_def_cfa_offset 8
+  55              		.cfi_offset 4, -8
+  56              		.cfi_offset 14, -4
+  57              	.LBB21:
+  58              	.LBB19:
+  59              		.loc 1 175 5 view .LVU5
+  60 0006 2448     		ldr	r0, .L16
+  61 0008 FFF7FEFF 		bl	memset
+  62              	.LVL0:
+ 176:App/src/app_fusion.c **** 
+ 177:App/src/app_fusion.c ****     /* 初始协方差 P (较大，表示初始不确定性) */
+ 178:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+  63              		.loc 1 178 5 is_stmt 1 view .LVU6
+  64              	.LBB10:
+  65              		.loc 1 178 10 view .LVU7
+  66              		.loc 1 178 21 view .LVU8
+  67              		.loc 1 178 14 is_stmt 0 view .LVU9
+  68 000c 0021     		movs	r1, #0
+  69              	.LBB11:
+ 179:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 180:App/src/app_fusion.c ****             s_kf_state.P[i][j] = (i == j) ? 1000.0f : 0.0f;
+  70              		.loc 1 180 53 view .LVU10
+  71 000e DFED236A 		vldr.32	s13, .L16+4
+  72 0012 9FED237A 		vldr.32	s14, .L16+8
+  73 0016 2348     		ldr	r0, .L16+12
+  74              	.LVL1:
+  75              	.L2:
+ 179:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+  76              		.loc 1 179 25 is_stmt 1 view .LVU11
+  77              	.LBE11:
+  78              	.LBE10:
+  79              	.LBE19:
+  80              	.LBE21:
+  51:App/src/app_fusion.c ****     kalman_init();
+  81              		.loc 1 51 1 is_stmt 0 view .LVU12
+  82 0018 0246     		mov	r2, r0
+  83              	.LBB22:
+  84              	.LBB20:
+  85              	.LBB13:
+  86              	.LBB12:
+ 179:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+  87              		.loc 1 179 18 view .LVU13
+  88 001a 0023     		movs	r3, #0
+  89              	.LVL2:
+  90              	.L4:
+  91              		.loc 1 180 13 is_stmt 1 view .LVU14
+  92              		.loc 1 180 53 is_stmt 0 view .LVU15
+  93 001c 9942     		cmp	r1, r3
+ 179:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+  94              		.loc 1 179 33 view .LVU16
+  95 001e 03F10103 		add	r3, r3, #1
+  96              	.LVL3:
+  97              		.loc 1 180 53 view .LVU17
+  98 0022 46FE877A 		vseleq.f32	s15, s13, s14
+  99              	.LVL4:
+ 179:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 100              		.loc 1 179 9 view .LVU18
+ARM GAS  /tmp/cclWbXVM.s 			page 6
+
+
+ 101 0026 062B     		cmp	r3, #6
+ 102              		.loc 1 180 32 view .LVU19
+ 103 0028 E2EC017A 		vstmia.32	r2!, {s15}
+ 179:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 104              		.loc 1 179 32 is_stmt 1 view .LVU20
+ 105              	.LVL5:
+ 179:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 106              		.loc 1 179 25 view .LVU21
+ 179:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 107              		.loc 1 179 9 is_stmt 0 view .LVU22
+ 108 002c F6D1     		bne	.L4
+ 109              	.LBE12:
+ 178:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 110              		.loc 1 178 28 is_stmt 1 view .LVU23
+ 178:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 111              		.loc 1 178 29 is_stmt 0 view .LVU24
+ 112 002e 0131     		adds	r1, r1, #1
+ 113              	.LVL6:
+ 178:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 114              		.loc 1 178 21 is_stmt 1 view .LVU25
+ 178:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 115              		.loc 1 178 5 is_stmt 0 view .LVU26
+ 116 0030 0629     		cmp	r1, #6
+ 117 0032 00F11800 		add	r0, r0, #24
+ 118 0036 EFD1     		bne	.L2
+ 119              	.LBE13:
+ 120              	.LBB14:
+ 181:App/src/app_fusion.c ****         }
+ 182:App/src/app_fusion.c ****     }
+ 183:App/src/app_fusion.c **** 
+ 184:App/src/app_fusion.c ****     /* 过程噪声 Q (反映模型预测的波动) */
+ 185:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 121              		.loc 1 185 14 view .LVU27
+ 122 0038 0021     		movs	r1, #0
+ 123              	.LVL7:
+ 124              	.LBB15:
+ 186:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 187:App/src/app_fusion.c ****             s_Q[i][j] = (i == j) ? 10.0f : 0.0f;
+ 125              		.loc 1 187 42 view .LVU28
+ 126 003a F2EE046A 		vmov.f32	s13, #1.0e+1
+ 127 003e 9FED187A 		vldr.32	s14, .L16+8
+ 128 0042 1948     		ldr	r0, .L16+16
+ 129              	.LVL8:
+ 130              	.L5:
+ 186:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 131              		.loc 1 186 25 is_stmt 1 view .LVU29
+ 132              	.LBE15:
+ 133              	.LBE14:
+ 134              	.LBB17:
+ 178:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 135              		.loc 1 178 14 is_stmt 0 view .LVU30
+ 136 0044 0246     		mov	r2, r0
+ 137              	.LBE17:
+ 138              	.LBB18:
+ 139              	.LBB16:
+ 186:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 140              		.loc 1 186 18 view .LVU31
+ARM GAS  /tmp/cclWbXVM.s 			page 7
+
+
+ 141 0046 0023     		movs	r3, #0
+ 142              	.LVL9:
+ 143              	.L7:
+ 144              		.loc 1 187 13 is_stmt 1 view .LVU32
+ 145              		.loc 1 187 42 is_stmt 0 view .LVU33
+ 146 0048 9942     		cmp	r1, r3
+ 186:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 147              		.loc 1 186 33 view .LVU34
+ 148 004a 03F10103 		add	r3, r3, #1
+ 149              	.LVL10:
+ 150              		.loc 1 187 42 view .LVU35
+ 151 004e 46FE877A 		vseleq.f32	s15, s13, s14
+ 152              	.LVL11:
+ 186:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 153              		.loc 1 186 9 view .LVU36
+ 154 0052 062B     		cmp	r3, #6
+ 155              		.loc 1 187 23 view .LVU37
+ 156 0054 E2EC017A 		vstmia.32	r2!, {s15}
+ 186:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 157              		.loc 1 186 32 is_stmt 1 view .LVU38
+ 158              	.LVL12:
+ 186:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 159              		.loc 1 186 25 view .LVU39
+ 186:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 160              		.loc 1 186 9 is_stmt 0 view .LVU40
+ 161 0058 F6D1     		bne	.L7
+ 162              	.LBE16:
+ 185:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 163              		.loc 1 185 28 is_stmt 1 view .LVU41
+ 185:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 164              		.loc 1 185 29 is_stmt 0 view .LVU42
+ 165 005a 0131     		adds	r1, r1, #1
+ 166              	.LVL13:
+ 185:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 167              		.loc 1 185 21 is_stmt 1 view .LVU43
+ 185:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 168              		.loc 1 185 5 is_stmt 0 view .LVU44
+ 169 005c 0629     		cmp	r1, #6
+ 170 005e 00F11800 		add	r0, r0, #24
+ 171 0062 EFD1     		bne	.L5
+ 172              	.LBE18:
+ 188:App/src/app_fusion.c ****         }
+ 189:App/src/app_fusion.c ****     }
+ 190:App/src/app_fusion.c **** 
+ 191:App/src/app_fusion.c ****     /* 测量噪声 R (根据传感器特性设定) */
+ 192:App/src/app_fusion.c ****     s_R[0] = 100.0f;   /* ToF: 100mm 变差 */
+ 173              		.loc 1 192 5 is_stmt 1 view .LVU45
+ 174              		.loc 1 192 12 is_stmt 0 view .LVU46
+ 175 0064 114B     		ldr	r3, .L16+20
+ 176              	.LVL14:
+ 177              		.loc 1 192 12 view .LVU47
+ 178 0066 DFF85CE0 		ldr	lr, .L16+44
+ 193:App/src/app_fusion.c ****     s_R[1] = 400.0f;   /* UWB: 400mm 变差 */
+ 179              		.loc 1 193 12 view .LVU48
+ 180 006a DFF85CC0 		ldr	ip, .L16+48
+ 194:App/src/app_fusion.c ****     s_R[2] = 250.0f;   /* Vision: 250mm 变差 */
+ 181              		.loc 1 194 12 view .LVU49
+ARM GAS  /tmp/cclWbXVM.s 			page 8
+
+
+ 182 006e 104C     		ldr	r4, .L16+24
+ 192:App/src/app_fusion.c ****     s_R[1] = 400.0f;   /* UWB: 400mm 变差 */
+ 183              		.loc 1 192 12 view .LVU50
+ 184 0070 C3F800E0 		str	lr, [r3]	@ float
+ 193:App/src/app_fusion.c ****     s_R[1] = 400.0f;   /* UWB: 400mm 变差 */
+ 185              		.loc 1 193 5 is_stmt 1 view .LVU51
+ 193:App/src/app_fusion.c ****     s_R[1] = 400.0f;   /* UWB: 400mm 变差 */
+ 186              		.loc 1 193 12 is_stmt 0 view .LVU52
+ 187 0074 C3F804C0 		str	ip, [r3, #4]	@ float
+ 188              		.loc 1 194 5 is_stmt 1 view .LVU53
+ 189              		.loc 1 194 12 is_stmt 0 view .LVU54
+ 190 0078 9C60     		str	r4, [r3, #8]	@ float
+ 191              	.LVL15:
+ 192              		.loc 1 194 12 view .LVU55
+ 193              	.LBE20:
+ 194              	.LBE22:
+  55:App/src/app_fusion.c ****     s_active_idx = 0;
+ 195              		.loc 1 55 5 is_stmt 1 view .LVU56
+ 196 007a 3822     		movs	r2, #56
+ 197 007c 0021     		movs	r1, #0
+ 198 007e 0D48     		ldr	r0, .L16+28
+ 199 0080 FFF7FEFF 		bl	memset
+ 200              	.LVL16:
+  56:App/src/app_fusion.c ****     s_version = 0;
+ 201              		.loc 1 56 5 view .LVU57
+  56:App/src/app_fusion.c ****     s_version = 0;
+ 202              		.loc 1 56 18 is_stmt 0 view .LVU58
+ 203 0084 0020     		movs	r0, #0
+  58:App/src/app_fusion.c **** 
+ 204              		.loc 1 58 26 view .LVU59
+ 205 0086 0122     		movs	r2, #1
+  56:App/src/app_fusion.c ****     s_version = 0;
+ 206              		.loc 1 56 18 view .LVU60
+ 207 0088 0B4C     		ldr	r4, .L16+32
+  57:App/src/app_fusion.c ****     s_fusion_initialized = 1;
+ 208              		.loc 1 57 15 view .LVU61
+ 209 008a 0C49     		ldr	r1, .L16+36
+  58:App/src/app_fusion.c **** 
+ 210              		.loc 1 58 26 view .LVU62
+ 211 008c 0C4B     		ldr	r3, .L16+40
+  56:App/src/app_fusion.c ****     s_version = 0;
+ 212              		.loc 1 56 18 view .LVU63
+ 213 008e 2070     		strb	r0, [r4]
+  57:App/src/app_fusion.c ****     s_fusion_initialized = 1;
+ 214              		.loc 1 57 5 is_stmt 1 view .LVU64
+  57:App/src/app_fusion.c ****     s_fusion_initialized = 1;
+ 215              		.loc 1 57 15 is_stmt 0 view .LVU65
+ 216 0090 0860     		str	r0, [r1]
+  58:App/src/app_fusion.c **** 
+ 217              		.loc 1 58 5 is_stmt 1 view .LVU66
+  58:App/src/app_fusion.c **** 
+ 218              		.loc 1 58 26 is_stmt 0 view .LVU67
+ 219 0092 1A70     		strb	r2, [r3]
+  60:App/src/app_fusion.c ****     return LINGXI_OK;
+ 220              		.loc 1 60 5 is_stmt 1 view .LVU68
+  61:App/src/app_fusion.c **** }
+ 221              		.loc 1 61 5 view .LVU69
+ARM GAS  /tmp/cclWbXVM.s 			page 9
+
+
+  62:App/src/app_fusion.c **** 
+ 222              		.loc 1 62 1 is_stmt 0 view .LVU70
+ 223 0094 10BD     		pop	{r4, pc}
+ 224              	.L17:
+ 225 0096 00BF     		.align	2
+ 226              	.L16:
+ 227 0098 00000000 		.word	.LANCHOR0
+ 228 009c 00007A44 		.word	1148846080
+ 229 00a0 00000000 		.word	0
+ 230 00a4 18000000 		.word	.LANCHOR0+24
+ 231 00a8 00000000 		.word	.LANCHOR1
+ 232 00ac 00000000 		.word	.LANCHOR2
+ 233 00b0 00007A43 		.word	1132068864
+ 234 00b4 00000000 		.word	.LANCHOR3
+ 235 00b8 00000000 		.word	.LANCHOR4
+ 236 00bc 00000000 		.word	.LANCHOR5
+ 237 00c0 00000000 		.word	.LANCHOR6
+ 238 00c4 0000C842 		.word	1120403456
+ 239 00c8 0000C843 		.word	1137180672
+ 240              		.cfi_endproc
+ 241              	.LFE811:
+ 243              		.section	.text.app_fusion_get_result,"ax",%progbits
+ 244              		.align	1
+ 245              		.p2align 2,,3
+ 246              		.global	app_fusion_get_result
+ 247              		.syntax unified
+ 248              		.thumb
+ 249              		.thumb_func
+ 250              		.fpu fpv5-d16
+ 252              	app_fusion_get_result:
+ 253              	.LVL17:
+ 254              	.LFB813:
+ 129:App/src/app_fusion.c ****     if (data == NULL) return LINGXI_ERR_INVALID_PARAM;
+ 255              		.loc 1 129 1 is_stmt 1 view -0
+ 256              		.cfi_startproc
+ 257              		@ args = 0, pretend = 0, frame = 0
+ 258              		@ frame_needed = 0, uses_anonymous_args = 0
+ 130:App/src/app_fusion.c ****     if (!s_fusion_initialized) return LINGXI_ERR_NOT_INIT;
+ 259              		.loc 1 130 5 view .LVU72
+ 130:App/src/app_fusion.c ****     if (!s_fusion_initialized) return LINGXI_ERR_NOT_INIT;
+ 260              		.loc 1 130 8 is_stmt 0 view .LVU73
+ 261 0000 0028     		cmp	r0, #0
+ 262 0002 41D0     		beq	.L21
+ 131:App/src/app_fusion.c **** 
+ 263              		.loc 1 131 5 is_stmt 1 view .LVU74
+ 129:App/src/app_fusion.c ****     if (data == NULL) return LINGXI_ERR_INVALID_PARAM;
+ 264              		.loc 1 129 1 is_stmt 0 view .LVU75
+ 265 0004 2DE9F843 		push	{r3, r4, r5, r6, r7, r8, r9, lr}
+ 266              		.cfi_def_cfa_offset 32
+ 267              		.cfi_offset 3, -32
+ 268              		.cfi_offset 4, -28
+ 269              		.cfi_offset 5, -24
+ 270              		.cfi_offset 6, -20
+ 271              		.cfi_offset 7, -16
+ 272              		.cfi_offset 8, -12
+ 273              		.cfi_offset 9, -8
+ 274              		.cfi_offset 14, -4
+ARM GAS  /tmp/cclWbXVM.s 			page 10
+
+
+ 131:App/src/app_fusion.c **** 
+ 275              		.loc 1 131 9 view .LVU76
+ 276 0008 214B     		ldr	r3, .L29
+ 277 000a 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 131:App/src/app_fusion.c **** 
+ 278              		.loc 1 131 8 view .LVU77
+ 279 000c CBB3     		cbz	r3, .L22
+ 280 000e 0446     		mov	r4, r0
+ 281 0010 0326     		movs	r6, #3
+ 282 0012 204F     		ldr	r7, .L29+4
+ 283 0014 DFF88480 		ldr	r8, .L29+12
+ 284 0018 1F4D     		ldr	r5, .L29+8
+ 285              	.LVL18:
+ 286              	.L20:
+ 140:App/src/app_fusion.c ****         v1 = s_version;          // 记录开始读取前的版本
+ 287              		.loc 1 140 5 is_stmt 1 view .LVU78
+ 141:App/src/app_fusion.c ****         idx = s_active_idx;      // 获取当前活跃索引
+ 288              		.loc 1 141 9 view .LVU79
+ 153:App/src/app_fusion.c ****     } while (retry_count < max_retries);
+ 289              		.loc 1 153 9 view .LVU80
+ 154:App/src/app_fusion.c **** 
+ 290              		.loc 1 154 13 view .LVU81
+ 141:App/src/app_fusion.c ****         idx = s_active_idx;      // 获取当前活跃索引
+ 291              		.loc 1 141 12 is_stmt 0 view .LVU82
+ 292 001a D7F80090 		ldr	r9, [r7]
+ 293              	.LVL19:
+ 142:App/src/app_fusion.c ****         
+ 294              		.loc 1 142 9 is_stmt 1 view .LVU83
+ 142:App/src/app_fusion.c ****         
+ 295              		.loc 1 142 13 is_stmt 0 view .LVU84
+ 296 001e 98F800C0 		ldrb	ip, [r8]	@ zero_extendqisi2
+ 297              	.LVL20:
+ 144:App/src/app_fusion.c ****         
+ 298              		.loc 1 144 9 is_stmt 1 view .LVU85
+ 146:App/src/app_fusion.c ****         
+ 299              		.loc 1 146 12 is_stmt 0 view .LVU86
+ 300 0022 D7F800E0 		ldr	lr, [r7]
+ 144:App/src/app_fusion.c ****         
+ 301              		.loc 1 144 22 view .LVU87
+ 302 0026 CCEBCC0C 		rsb	ip, ip, ip, lsl #3
+ 303              	.LVL21:
+ 144:App/src/app_fusion.c ****         
+ 304              		.loc 1 144 9 view .LVU88
+ 305 002a 05EB8C0C 		add	ip, r5, ip, lsl #2
+ 306 002e BCE80F00 		ldmia	ip!, {r0, r1, r2, r3}
+ 148:App/src/app_fusion.c ****             /* 版本未变，说明读取过程中没有发生写操作，数据一致性保证 */
+ 307              		.loc 1 148 12 view .LVU89
+ 308 0032 F145     		cmp	r9, lr
+ 144:App/src/app_fusion.c ****         
+ 309              		.loc 1 144 9 view .LVU90
+ 310 0034 2060     		str	r0, [r4]	@ unaligned
+ 311 0036 6160     		str	r1, [r4, #4]	@ unaligned
+ 312 0038 A260     		str	r2, [r4, #8]	@ unaligned
+ 313 003a E360     		str	r3, [r4, #12]	@ unaligned
+ 314 003c BCE80700 		ldmia	ip!, {r0, r1, r2}
+ 315 0040 2061     		str	r0, [r4, #16]	@ unaligned
+ 316 0042 6161     		str	r1, [r4, #20]	@ unaligned
+ARM GAS  /tmp/cclWbXVM.s 			page 11
+
+
+ 317 0044 A261     		str	r2, [r4, #24]	@ unaligned
+ 146:App/src/app_fusion.c ****         
+ 318              		.loc 1 146 9 is_stmt 1 view .LVU91
+ 319              	.LVL22:
+ 148:App/src/app_fusion.c ****             /* 版本未变，说明读取过程中没有发生写操作，数据一致性保证 */
+ 320              		.loc 1 148 9 view .LVU92
+ 148:App/src/app_fusion.c ****             /* 版本未变，说明读取过程中没有发生写操作，数据一致性保证 */
+ 321              		.loc 1 148 12 is_stmt 0 view .LVU93
+ 322 0046 19D0     		beq	.L23
+ 154:App/src/app_fusion.c **** 
+ 323              		.loc 1 154 5 view .LVU94
+ 324 0048 013E     		subs	r6, r6, #1
+ 325              	.LVL23:
+ 154:App/src/app_fusion.c **** 
+ 326              		.loc 1 154 5 view .LVU95
+ 327 004a E6D1     		bne	.L20
+ 157:App/src/app_fusion.c ****     idx = s_active_idx;
+ 328              		.loc 1 157 5 is_stmt 1 view .LVU96
+ 329 004c FFF7FEFF 		bl	vPortEnterCritical
+ 330              	.LVL24:
+ 158:App/src/app_fusion.c ****     memcpy(data, &s_fusion_bufs[idx], sizeof(sensor_fusion_data_t));
+ 331              		.loc 1 158 5 view .LVU97
+ 158:App/src/app_fusion.c ****     memcpy(data, &s_fusion_bufs[idx], sizeof(sensor_fusion_data_t));
+ 332              		.loc 1 158 9 is_stmt 0 view .LVU98
+ 333 0050 98F800C0 		ldrb	ip, [r8]	@ zero_extendqisi2
+ 334              	.LVL25:
+ 159:App/src/app_fusion.c ****     taskEXIT_CRITICAL();
+ 335              		.loc 1 159 5 is_stmt 1 view .LVU99
+ 159:App/src/app_fusion.c ****     taskEXIT_CRITICAL();
+ 336              		.loc 1 159 18 is_stmt 0 view .LVU100
+ 337 0054 CCEBCC0C 		rsb	ip, ip, ip, lsl #3
+ 338              	.LVL26:
+ 159:App/src/app_fusion.c ****     taskEXIT_CRITICAL();
+ 339              		.loc 1 159 5 view .LVU101
+ 340 0058 05EB8C0C 		add	ip, r5, ip, lsl #2
+ 341 005c BCE80F00 		ldmia	ip!, {r0, r1, r2, r3}
+ 342 0060 2060     		str	r0, [r4]	@ unaligned
+ 343 0062 6160     		str	r1, [r4, #4]	@ unaligned
+ 344 0064 A260     		str	r2, [r4, #8]	@ unaligned
+ 345 0066 E360     		str	r3, [r4, #12]	@ unaligned
+ 346 0068 BCE80700 		ldmia	ip!, {r0, r1, r2}
+ 347 006c 2061     		str	r0, [r4, #16]	@ unaligned
+ 348 006e 6161     		str	r1, [r4, #20]	@ unaligned
+ 349 0070 A261     		str	r2, [r4, #24]	@ unaligned
+ 160:App/src/app_fusion.c **** 
+ 350              		.loc 1 160 5 is_stmt 1 view .LVU102
+ 351 0072 FFF7FEFF 		bl	vPortExitCritical
+ 352              	.LVL27:
+ 162:App/src/app_fusion.c **** }
+ 353              		.loc 1 162 5 view .LVU103
+ 162:App/src/app_fusion.c **** }
+ 354              		.loc 1 162 12 is_stmt 0 view .LVU104
+ 355 0076 3046     		mov	r0, r6
+ 356              	.LVL28:
+ 357              	.L19:
+ 163:App/src/app_fusion.c **** 
+ 358              		.loc 1 163 1 view .LVU105
+ARM GAS  /tmp/cclWbXVM.s 			page 12
+
+
+ 359 0078 BDE8F883 		pop	{r3, r4, r5, r6, r7, r8, r9, pc}
+ 360              	.LVL29:
+ 361              	.L23:
+ 150:App/src/app_fusion.c ****         }
+ 362              		.loc 1 150 20 view .LVU106
+ 363 007c 0020     		movs	r0, #0
+ 163:App/src/app_fusion.c **** 
+ 364              		.loc 1 163 1 view .LVU107
+ 365 007e BDE8F883 		pop	{r3, r4, r5, r6, r7, r8, r9, pc}
+ 366              	.LVL30:
+ 367              	.L22:
+ 131:App/src/app_fusion.c **** 
+ 368              		.loc 1 131 39 view .LVU108
+ 369 0082 6FF00500 		mvn	r0, #5
+ 370              	.LVL31:
+ 131:App/src/app_fusion.c **** 
+ 371              		.loc 1 131 39 view .LVU109
+ 372 0086 F7E7     		b	.L19
+ 373              	.LVL32:
+ 374              	.L21:
+ 375              		.cfi_def_cfa_offset 0
+ 376              		.cfi_restore 3
+ 377              		.cfi_restore 4
+ 378              		.cfi_restore 5
+ 379              		.cfi_restore 6
+ 380              		.cfi_restore 7
+ 381              		.cfi_restore 8
+ 382              		.cfi_restore 9
+ 383              		.cfi_restore 14
+ 130:App/src/app_fusion.c ****     if (!s_fusion_initialized) return LINGXI_ERR_NOT_INIT;
+ 384              		.loc 1 130 30 view .LVU110
+ 385 0088 6FF00100 		mvn	r0, #1
+ 386              	.LVL33:
+ 163:App/src/app_fusion.c **** 
+ 387              		.loc 1 163 1 view .LVU111
+ 388 008c 7047     		bx	lr
+ 389              	.L30:
+ 390 008e 00BF     		.align	2
+ 391              	.L29:
+ 392 0090 00000000 		.word	.LANCHOR6
+ 393 0094 00000000 		.word	.LANCHOR5
+ 394 0098 00000000 		.word	.LANCHOR3
+ 395 009c 00000000 		.word	.LANCHOR4
+ 396              		.cfi_endproc
+ 397              	.LFE813:
+ 399              		.section	.text.app_fusion_kalman_predict,"ax",%progbits
+ 400              		.align	1
+ 401              		.p2align 2,,3
+ 402              		.global	app_fusion_kalman_predict
+ 403              		.syntax unified
+ 404              		.thumb
+ 405              		.thumb_func
+ 406              		.fpu fpv5-d16
+ 408              	app_fusion_kalman_predict:
+ 409              	.LVL34:
+ 410              	.LFB819:
+ 195:App/src/app_fusion.c **** }
+ARM GAS  /tmp/cclWbXVM.s 			page 13
+
+
+ 196:App/src/app_fusion.c **** 
+ 197:App/src/app_fusion.c **** /* 辅助: 6x6 矩阵乘法 C = A * B */
+ 198:App/src/app_fusion.c **** static inline void mat_mul_6x6(const float A[6][6], const float B[6][6], float C[6][6])
+ 199:App/src/app_fusion.c **** {
+ 200:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 201:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 202:App/src/app_fusion.c ****             float sum = 0.0f;
+ 203:App/src/app_fusion.c ****             for (int k = 0; k < 6; k++) {
+ 204:App/src/app_fusion.c ****                 sum += A[i][k] * B[k][j];
+ 205:App/src/app_fusion.c ****             }
+ 206:App/src/app_fusion.c ****             C[i][j] = sum;
+ 207:App/src/app_fusion.c ****         }
+ 208:App/src/app_fusion.c ****     }
+ 209:App/src/app_fusion.c **** }
+ 210:App/src/app_fusion.c **** 
+ 211:App/src/app_fusion.c **** /* 辅助: 6x6 矩阵转置 B = A^T */
+ 212:App/src/app_fusion.c **** static inline void mat_trans_6x6(const float A[6][6], float B[6][6])
+ 213:App/src/app_fusion.c **** {
+ 214:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 215:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 216:App/src/app_fusion.c ****             B[j][i] = A[i][j];
+ 217:App/src/app_fusion.c ****         }
+ 218:App/src/app_fusion.c ****     }
+ 219:App/src/app_fusion.c **** }
+ 220:App/src/app_fusion.c **** 
+ 221:App/src/app_fusion.c **** /* 辅助: 6x6 矩阵加法 C = A + B */
+ 222:App/src/app_fusion.c **** static inline void mat_add_6x6(const float A[6][6], const float B[6][6], float C[6][6])
+ 223:App/src/app_fusion.c **** {
+ 224:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 225:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 226:App/src/app_fusion.c ****             C[i][j] = A[i][j] + B[i][j];
+ 227:App/src/app_fusion.c ****         }
+ 228:App/src/app_fusion.c ****     }
+ 229:App/src/app_fusion.c **** }
+ 230:App/src/app_fusion.c **** 
+ 231:App/src/app_fusion.c **** /* 辅助: 6x6 矩阵与 6x1 向量相乘 y = M * x */
+ 232:App/src/app_fusion.c **** static inline void mat_vec_mul_6x6(const float M[6][6], const float x[6], float y[6])
+ 233:App/src/app_fusion.c **** {
+ 234:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 235:App/src/app_fusion.c ****         float sum = 0.0f;
+ 236:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 237:App/src/app_fusion.c ****             sum += M[i][j] * x[j];
+ 238:App/src/app_fusion.c ****         }
+ 239:App/src/app_fusion.c ****         y[i] = sum;
+ 240:App/src/app_fusion.c ****     }
+ 241:App/src/app_fusion.c **** }
+ 242:App/src/app_fusion.c **** 
+ 243:App/src/app_fusion.c **** /**
+ 244:App/src/app_fusion.c ****  * @brief  卡尔曼预测步骤 (纯 C 实现, 利用 F 稀疏性手写优化)
+ 245:App/src/app_fusion.c ****  */
+ 246:App/src/app_fusion.c **** lingxi_err_t app_fusion_kalman_predict(uint32_t dt_ms)
+ 247:App/src/app_fusion.c **** {
+ 411              		.loc 1 247 1 is_stmt 1 view -0
+ 412              		.cfi_startproc
+ 413              		@ args = 0, pretend = 0, frame = 144
+ 414              		@ frame_needed = 0, uses_anonymous_args = 0
+ 248:App/src/app_fusion.c ****     float dt = (float)dt_ms / 1000.0f;
+ARM GAS  /tmp/cclWbXVM.s 			page 14
+
+
+ 415              		.loc 1 248 5 view .LVU113
+ 416              		.loc 1 248 16 is_stmt 0 view .LVU114
+ 417 0000 06EE900A 		vmov	s13, r0	@ int
+ 418              		.loc 1 248 11 view .LVU115
+ 419 0004 DFED493A 		vldr.32	s7, .L47
+ 420              		.loc 1 248 16 view .LVU116
+ 421 0008 B8EE664A 		vcvt.f32.u32	s8, s13
+ 249:App/src/app_fusion.c ****     static float x_pred_buf[6];
+ 250:App/src/app_fusion.c ****     static float P_pred_buf[36];
+ 251:App/src/app_fusion.c ****     float (*P_pred)[6] = (float (*)[6])P_pred_buf;
+ 252:App/src/app_fusion.c **** 
+ 253:App/src/app_fusion.c ****     /* 1. x_pred = F * x (手写展开, 利用 F 稀疏性加速) */
+ 254:App/src/app_fusion.c ****     x_pred_buf[0] = s_kf_state.x + dt * s_kf_state.vx;
+ 422              		.loc 1 254 51 view .LVU117
+ 423 000c 484B     		ldr	r3, .L47+4
+ 248:App/src/app_fusion.c ****     float dt = (float)dt_ms / 1000.0f;
+ 424              		.loc 1 248 11 view .LVU118
+ 425 000e C4EE236A 		vdiv.f32	s13, s8, s7
+ 426              	.LVL35:
+ 249:App/src/app_fusion.c ****     static float x_pred_buf[6];
+ 427              		.loc 1 249 5 is_stmt 1 view .LVU119
+ 250:App/src/app_fusion.c ****     float (*P_pred)[6] = (float (*)[6])P_pred_buf;
+ 428              		.loc 1 250 5 view .LVU120
+ 251:App/src/app_fusion.c **** 
+ 429              		.loc 1 251 5 view .LVU121
+ 430              		.loc 1 254 5 view .LVU122
+ 431              		.loc 1 254 51 is_stmt 0 view .LVU123
+ 432 0012 93ED036A 		vldr.32	s12, [r3, #12]
+ 255:App/src/app_fusion.c ****     x_pred_buf[1] = s_kf_state.y + dt * s_kf_state.vy;
+ 433              		.loc 1 255 51 view .LVU124
+ 434 0016 93ED047A 		vldr.32	s14, [r3, #16]
+ 256:App/src/app_fusion.c ****     x_pred_buf[2] = s_kf_state.z + dt * s_kf_state.vz;
+ 435              		.loc 1 256 51 view .LVU125
+ 436 001a D3ED057A 		vldr.32	s15, [r3, #20]
+ 254:App/src/app_fusion.c ****     x_pred_buf[1] = s_kf_state.y + dt * s_kf_state.vy;
+ 437              		.loc 1 254 19 view .LVU126
+ 438 001e 454A     		ldr	r2, .L47+8
+ 247:App/src/app_fusion.c ****     float dt = (float)dt_ms / 1000.0f;
+ 439              		.loc 1 247 1 view .LVU127
+ 440 0020 70B5     		push	{r4, r5, r6, lr}
+ 441              		.cfi_def_cfa_offset 16
+ 442              		.cfi_offset 4, -16
+ 443              		.cfi_offset 5, -12
+ 444              		.cfi_offset 6, -8
+ 445              		.cfi_offset 14, -4
+ 254:App/src/app_fusion.c ****     x_pred_buf[1] = s_kf_state.y + dt * s_kf_state.vy;
+ 446              		.loc 1 254 34 view .LVU128
+ 447 0022 D3ED004A 		vldr.32	s9, [r3]
+ 255:App/src/app_fusion.c ****     x_pred_buf[2] = s_kf_state.z + dt * s_kf_state.vz;
+ 448              		.loc 1 255 34 view .LVU129
+ 449 0026 93ED015A 		vldr.32	s10, [r3, #4]
+ 450              		.loc 1 256 34 view .LVU130
+ 451 002a D3ED025A 		vldr.32	s11, [r3, #8]
+ 257:App/src/app_fusion.c ****     x_pred_buf[3] = s_kf_state.vx;
+ 452              		.loc 1 257 19 view .LVU131
+ 453 002e 82ED036A 		vstr.32	s12, [r2, #12]
+ 258:App/src/app_fusion.c ****     x_pred_buf[4] = s_kf_state.vy;
+ARM GAS  /tmp/cclWbXVM.s 			page 15
+
+
+ 454              		.loc 1 258 19 view .LVU132
+ 455 0032 82ED047A 		vstr.32	s14, [r2, #16]
+ 259:App/src/app_fusion.c ****     x_pred_buf[5] = s_kf_state.vz;
+ 456              		.loc 1 259 19 view .LVU133
+ 457 0036 C2ED057A 		vstr.32	s15, [r2, #20]
+ 254:App/src/app_fusion.c ****     x_pred_buf[1] = s_kf_state.y + dt * s_kf_state.vy;
+ 458              		.loc 1 254 39 view .LVU134
+ 459 003a 26EE266A 		vmul.f32	s12, s12, s13
+ 255:App/src/app_fusion.c ****     x_pred_buf[2] = s_kf_state.z + dt * s_kf_state.vz;
+ 460              		.loc 1 255 39 view .LVU135
+ 461 003e 27EE267A 		vmul.f32	s14, s14, s13
+ 256:App/src/app_fusion.c ****     x_pred_buf[3] = s_kf_state.vx;
+ 462              		.loc 1 256 39 view .LVU136
+ 463 0042 67EEA67A 		vmul.f32	s15, s15, s13
+ 254:App/src/app_fusion.c ****     x_pred_buf[1] = s_kf_state.y + dt * s_kf_state.vy;
+ 464              		.loc 1 254 34 view .LVU137
+ 465 0046 34EE866A 		vadd.f32	s12, s9, s12
+ 255:App/src/app_fusion.c ****     x_pred_buf[2] = s_kf_state.z + dt * s_kf_state.vz;
+ 466              		.loc 1 255 34 view .LVU138
+ 467 004a 35EE077A 		vadd.f32	s14, s10, s14
+ 256:App/src/app_fusion.c ****     x_pred_buf[3] = s_kf_state.vx;
+ 468              		.loc 1 256 34 view .LVU139
+ 469 004e 75EEA77A 		vadd.f32	s15, s11, s15
+ 247:App/src/app_fusion.c ****     float dt = (float)dt_ms / 1000.0f;
+ 470              		.loc 1 247 1 view .LVU140
+ 471 0052 A4B0     		sub	sp, sp, #144
+ 472              		.cfi_def_cfa_offset 160
+ 473 0054 6C46     		mov	r4, sp
+ 474              	.LBB23:
+ 260:App/src/app_fusion.c **** 
+ 261:App/src/app_fusion.c ****     /* 2. P_pred = F * P * F^T + Q (利用 F 的稀疏性简化) */
+ 262:App/src/app_fusion.c ****     /* 先计算 F*P */
+ 263:App/src/app_fusion.c ****     float FP[6][6];
+ 264:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 475              		.loc 1 264 14 view .LVU141
+ 476 0056 0021     		movs	r1, #0
+ 477              	.LBE23:
+ 254:App/src/app_fusion.c ****     x_pred_buf[1] = s_kf_state.y + dt * s_kf_state.vy;
+ 478              		.loc 1 254 19 view .LVU142
+ 479 0058 82ED006A 		vstr.32	s12, [r2]
+ 255:App/src/app_fusion.c ****     x_pred_buf[2] = s_kf_state.z + dt * s_kf_state.vz;
+ 480              		.loc 1 255 5 is_stmt 1 view .LVU143
+ 255:App/src/app_fusion.c ****     x_pred_buf[2] = s_kf_state.z + dt * s_kf_state.vz;
+ 481              		.loc 1 255 19 is_stmt 0 view .LVU144
+ 482 005c 82ED017A 		vstr.32	s14, [r2, #4]
+ 256:App/src/app_fusion.c ****     x_pred_buf[3] = s_kf_state.vx;
+ 483              		.loc 1 256 5 is_stmt 1 view .LVU145
+ 256:App/src/app_fusion.c ****     x_pred_buf[3] = s_kf_state.vx;
+ 484              		.loc 1 256 19 is_stmt 0 view .LVU146
+ 485 0060 C2ED027A 		vstr.32	s15, [r2, #8]
+ 257:App/src/app_fusion.c ****     x_pred_buf[4] = s_kf_state.vy;
+ 486              		.loc 1 257 5 is_stmt 1 view .LVU147
+ 258:App/src/app_fusion.c ****     x_pred_buf[5] = s_kf_state.vz;
+ 487              		.loc 1 258 5 view .LVU148
+ 259:App/src/app_fusion.c **** 
+ 488              		.loc 1 259 5 view .LVU149
+ 263:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ARM GAS  /tmp/cclWbXVM.s 			page 16
+
+
+ 489              		.loc 1 263 5 view .LVU150
+ 490              		.loc 1 264 5 view .LVU151
+ 491              	.LBB28:
+ 492              		.loc 1 264 10 view .LVU152
+ 493              	.LVL36:
+ 494              		.loc 1 264 21 view .LVU153
+ 495 0064 0DF1180C 		add	ip, sp, #24
+ 496 0068 03F1180E 		add	lr, r3, #24
+ 497              	.LVL37:
+ 498              	.L32:
+ 499              	.LBB24:
+ 265:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 500              		.loc 1 265 25 view .LVU154
+ 501              	.LBE24:
+ 502              	.LBE28:
+ 247:App/src/app_fusion.c ****     float dt = (float)dt_ms / 1000.0f;
+ 503              		.loc 1 247 1 is_stmt 0 view .LVU155
+ 504 006c 7346     		mov	r3, lr
+ 505 006e ACF11802 		sub	r2, ip, #24
+ 506 0072 0DE0     		b	.L35
+ 507              	.LVL38:
+ 508              	.L45:
+ 509              	.LBB29:
+ 510              	.LBB27:
+ 511              	.LBB25:
+ 266:App/src/app_fusion.c ****             float sum = 0.0f;
+ 267:App/src/app_fusion.c ****             if (i < 3) {
+ 268:App/src/app_fusion.c ****                 /* 前 3 行: P[i][j] + dt * P[i+3][j] */
+ 269:App/src/app_fusion.c ****                 sum = s_kf_state.P[i][j] + dt * s_kf_state.P[i+3][j];
+ 512              		.loc 1 269 47 view .LVU156
+ 513 0074 D3ED127A 		vldr.32	s15, [r3, #72]
+ 514              		.loc 1 269 21 view .LVU157
+ 515 0078 93ED007A 		vldr.32	s14, [r3]
+ 516              		.loc 1 269 47 view .LVU158
+ 517 007c 66EEA77A 		vmul.f32	s15, s13, s15
+ 518              		.loc 1 269 21 view .LVU159
+ 519 0080 77EE877A 		vadd.f32	s15, s15, s14
+ 520              	.LVL39:
+ 270:App/src/app_fusion.c ****             } else {
+ 271:App/src/app_fusion.c ****                 /* 后 3 行: P[i][j] (单位子块) */
+ 272:App/src/app_fusion.c ****                 sum = s_kf_state.P[i][j];
+ 273:App/src/app_fusion.c ****             }
+ 274:App/src/app_fusion.c ****             FP[i][j] = sum;
+ 521              		.loc 1 274 13 is_stmt 1 view .LVU160
+ 522              		.loc 1 274 22 is_stmt 0 view .LVU161
+ 523 0084 E2EC017A 		vstmia.32	r2!, {s15}
+ 524              	.LBE25:
+ 265:App/src/app_fusion.c ****             float sum = 0.0f;
+ 525              		.loc 1 265 32 is_stmt 1 view .LVU162
+ 265:App/src/app_fusion.c ****             float sum = 0.0f;
+ 526              		.loc 1 265 25 view .LVU163
+ 265:App/src/app_fusion.c ****             float sum = 0.0f;
+ 527              		.loc 1 265 9 is_stmt 0 view .LVU164
+ 528 0088 6245     		cmp	r2, ip
+ 529 008a 03F10403 		add	r3, r3, #4
+ 530 008e 09D0     		beq	.L44
+ 531              	.LVL40:
+ARM GAS  /tmp/cclWbXVM.s 			page 17
+
+
+ 532              	.L35:
+ 533              	.LBB26:
+ 266:App/src/app_fusion.c ****             float sum = 0.0f;
+ 534              		.loc 1 266 13 is_stmt 1 view .LVU165
+ 267:App/src/app_fusion.c ****                 /* 前 3 行: P[i][j] + dt * P[i+3][j] */
+ 535              		.loc 1 267 13 view .LVU166
+ 269:App/src/app_fusion.c ****             } else {
+ 536              		.loc 1 269 17 view .LVU167
+ 272:App/src/app_fusion.c ****             }
+ 537              		.loc 1 272 17 view .LVU168
+ 267:App/src/app_fusion.c ****                 /* 前 3 行: P[i][j] + dt * P[i+3][j] */
+ 538              		.loc 1 267 16 is_stmt 0 view .LVU169
+ 539 0090 0229     		cmp	r1, #2
+ 540 0092 EFDD     		ble	.L45
+ 272:App/src/app_fusion.c ****             }
+ 541              		.loc 1 272 21 view .LVU170
+ 542 0094 D3ED007A 		vldr.32	s15, [r3]
+ 543              	.LVL41:
+ 544              		.loc 1 274 13 is_stmt 1 view .LVU171
+ 545              		.loc 1 274 22 is_stmt 0 view .LVU172
+ 546 0098 E2EC017A 		vstmia.32	r2!, {s15}
+ 547              	.LBE26:
+ 265:App/src/app_fusion.c ****             float sum = 0.0f;
+ 548              		.loc 1 265 32 is_stmt 1 view .LVU173
+ 265:App/src/app_fusion.c ****             float sum = 0.0f;
+ 549              		.loc 1 265 25 view .LVU174
+ 265:App/src/app_fusion.c ****             float sum = 0.0f;
+ 550              		.loc 1 265 9 is_stmt 0 view .LVU175
+ 551 009c 6245     		cmp	r2, ip
+ 552 009e 03F10403 		add	r3, r3, #4
+ 553 00a2 F5D1     		bne	.L35
+ 554              	.L44:
+ 265:App/src/app_fusion.c ****             float sum = 0.0f;
+ 555              		.loc 1 265 9 view .LVU176
+ 556              	.LBE27:
+ 264:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 557              		.loc 1 264 28 is_stmt 1 discriminator 2 view .LVU177
+ 264:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 558              		.loc 1 264 29 is_stmt 0 discriminator 2 view .LVU178
+ 559 00a4 0131     		adds	r1, r1, #1
+ 560              	.LVL42:
+ 264:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 561              		.loc 1 264 21 is_stmt 1 discriminator 2 view .LVU179
+ 264:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 562              		.loc 1 264 5 is_stmt 0 discriminator 2 view .LVU180
+ 563 00a6 0629     		cmp	r1, #6
+ 564 00a8 02F1180C 		add	ip, r2, #24
+ 565 00ac 0EF1180E 		add	lr, lr, #24
+ 566 00b0 DCD1     		bne	.L32
+ 567 00b2 214E     		ldr	r6, .L47+12
+ 568 00b4 214D     		ldr	r5, .L47+16
+ 569 00b6 04F1900E 		add	lr, r4, #144
+ 570              	.LVL43:
+ 571              	.L36:
+ 264:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 572              		.loc 1 264 5 discriminator 2 view .LVU181
+ 573              	.LBE29:
+ARM GAS  /tmp/cclWbXVM.s 			page 18
+
+
+ 574              	.LBB30:
+ 575              	.LBB31:
+ 275:App/src/app_fusion.c ****         }
+ 276:App/src/app_fusion.c ****     }
+ 277:App/src/app_fusion.c **** 
+ 278:App/src/app_fusion.c ****     /* 再计算 FP * F^T */
+ 279:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 280:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 576              		.loc 1 280 25 is_stmt 1 view .LVU182
+ 577              	.LBE31:
+ 578              	.LBE30:
+ 579              	.LBB36:
+ 264:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 580              		.loc 1 264 14 is_stmt 0 view .LVU183
+ 581 00ba 2846     		mov	r0, r5
+ 582 00bc 3146     		mov	r1, r6
+ 583 00be A446     		mov	ip, r4
+ 584 00c0 0122     		movs	r2, #1
+ 585 00c2 0EE0     		b	.L40
+ 586              	.LVL44:
+ 587              	.L46:
+ 264:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 588              		.loc 1 264 14 view .LVU184
+ 589              	.LBE36:
+ 590              	.LBB37:
+ 591              	.LBB35:
+ 592              	.LBB32:
+ 281:App/src/app_fusion.c ****             float sum = FP[i][j];  /* k=0 项: F^T = I for position rows when j<3? */
+ 282:App/src/app_fusion.c ****             if (j < 3) {
+ 283:App/src/app_fusion.c ****                 sum = FP[i][j] + dt * FP[i][j+3];
+ 593              		.loc 1 283 37 view .LVU185
+ 594 00c4 DCED027A 		vldr.32	s15, [ip, #8]
+ 595 00c8 66EEA77A 		vmul.f32	s15, s13, s15
+ 284:App/src/app_fusion.c ****             } else {
+ 285:App/src/app_fusion.c ****                 sum = FP[i][j];
+ 286:App/src/app_fusion.c ****             }
+ 287:App/src/app_fusion.c ****             P_pred[i][j] = sum + s_Q[i][j];
+ 596              		.loc 1 287 32 view .LVU186
+ 597 00cc 91ED006A 		vldr.32	s12, [r1]
+ 283:App/src/app_fusion.c ****             } else {
+ 598              		.loc 1 283 21 view .LVU187
+ 599 00d0 77EE877A 		vadd.f32	s15, s15, s14
+ 600              		.loc 1 287 32 view .LVU188
+ 601 00d4 77EE867A 		vadd.f32	s15, s15, s12
+ 602              		.loc 1 287 26 view .LVU189
+ 603 00d8 C0ED007A 		vstr.32	s15, [r0]
+ 604              	.LBE32:
+ 280:App/src/app_fusion.c ****             float sum = FP[i][j];  /* k=0 项: F^T = I for position rows when j<3? */
+ 605              		.loc 1 280 32 is_stmt 1 view .LVU190
+ 606              	.LVL45:
+ 280:App/src/app_fusion.c ****             float sum = FP[i][j];  /* k=0 项: F^T = I for position rows when j<3? */
+ 607              		.loc 1 280 25 view .LVU191
+ 608              	.L38:
+ 280:App/src/app_fusion.c ****             float sum = FP[i][j];  /* k=0 项: F^T = I for position rows when j<3? */
+ 609              		.loc 1 280 25 is_stmt 0 view .LVU192
+ 610 00dc 0132     		adds	r2, r2, #1
+ 611 00de 0431     		adds	r1, r1, #4
+ARM GAS  /tmp/cclWbXVM.s 			page 19
+
+
+ 612 00e0 0430     		adds	r0, r0, #4
+ 613              	.L40:
+ 614              	.LVL46:
+ 615              	.LBB33:
+ 281:App/src/app_fusion.c ****             if (j < 3) {
+ 616              		.loc 1 281 13 is_stmt 1 view .LVU193
+ 282:App/src/app_fusion.c ****                 sum = FP[i][j] + dt * FP[i][j+3];
+ 617              		.loc 1 282 16 is_stmt 0 view .LVU194
+ 618 00e2 531E     		subs	r3, r2, #1
+ 619              	.LVL47:
+ 282:App/src/app_fusion.c ****                 sum = FP[i][j] + dt * FP[i][j+3];
+ 620              		.loc 1 282 16 view .LVU195
+ 621 00e4 022B     		cmp	r3, #2
+ 281:App/src/app_fusion.c ****             if (j < 3) {
+ 622              		.loc 1 281 19 view .LVU196
+ 623 00e6 BCEC017A 		vldmia.32	ip!, {s14}
+ 624              	.LVL48:
+ 282:App/src/app_fusion.c ****                 sum = FP[i][j] + dt * FP[i][j+3];
+ 625              		.loc 1 282 13 is_stmt 1 view .LVU197
+ 283:App/src/app_fusion.c ****             } else {
+ 626              		.loc 1 283 17 view .LVU198
+ 627              		.loc 1 287 13 view .LVU199
+ 628              		.loc 1 287 13 view .LVU200
+ 282:App/src/app_fusion.c ****                 sum = FP[i][j] + dt * FP[i][j+3];
+ 629              		.loc 1 282 16 is_stmt 0 view .LVU201
+ 630 00ea EBD9     		bls	.L46
+ 631              		.loc 1 287 32 discriminator 2 view .LVU202
+ 632 00ec D1ED007A 		vldr.32	s15, [r1]
+ 633 00f0 77EE877A 		vadd.f32	s15, s15, s14
+ 634              	.LBE33:
+ 280:App/src/app_fusion.c ****             float sum = FP[i][j];  /* k=0 项: F^T = I for position rows when j<3? */
+ 635              		.loc 1 280 9 discriminator 2 view .LVU203
+ 636 00f4 062A     		cmp	r2, #6
+ 637              	.LBB34:
+ 638              		.loc 1 287 26 discriminator 2 view .LVU204
+ 639 00f6 C0ED007A 		vstr.32	s15, [r0]
+ 640              	.LBE34:
+ 280:App/src/app_fusion.c ****             float sum = FP[i][j];  /* k=0 项: F^T = I for position rows when j<3? */
+ 641              		.loc 1 280 32 is_stmt 1 discriminator 2 view .LVU205
+ 642              	.LVL49:
+ 280:App/src/app_fusion.c ****             float sum = FP[i][j];  /* k=0 项: F^T = I for position rows when j<3? */
+ 643              		.loc 1 280 25 discriminator 2 view .LVU206
+ 280:App/src/app_fusion.c ****             float sum = FP[i][j];  /* k=0 项: F^T = I for position rows when j<3? */
+ 644              		.loc 1 280 9 is_stmt 0 discriminator 2 view .LVU207
+ 645 00fa EFD1     		bne	.L38
+ 646              	.LBE35:
+ 279:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 647              		.loc 1 279 28 is_stmt 1 discriminator 2 view .LVU208
+ 279:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 648              		.loc 1 279 21 discriminator 2 view .LVU209
+ 279:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 649              		.loc 1 279 5 is_stmt 0 discriminator 2 view .LVU210
+ 650 00fc 1834     		adds	r4, r4, #24
+ 651 00fe 7445     		cmp	r4, lr
+ 652 0100 06F11806 		add	r6, r6, #24
+ 653 0104 05F11805 		add	r5, r5, #24
+ 654 0108 D7D1     		bne	.L36
+ARM GAS  /tmp/cclWbXVM.s 			page 20
+
+
+ 655              	.LBE37:
+ 288:App/src/app_fusion.c ****         }
+ 289:App/src/app_fusion.c ****     }
+ 290:App/src/app_fusion.c **** 
+ 291:App/src/app_fusion.c ****     /* 3. 更新状态 */
+ 292:App/src/app_fusion.c ****     memcpy(&s_kf_state.x, x_pred_buf, sizeof(float) * 6);
+ 656              		.loc 1 292 5 is_stmt 1 view .LVU211
+ 657 010a 094C     		ldr	r4, .L47+4
+ 658 010c 094D     		ldr	r5, .L47+8
+ 659 010e 0FCD     		ldmia	r5!, {r0, r1, r2, r3}
+ 660              	.LVL50:
+ 661              		.loc 1 292 5 is_stmt 0 view .LVU212
+ 662 0110 0FC4     		stmia	r4!, {r0, r1, r2, r3}
+ 663 0112 95E80300 		ldm	r5, {r0, r1}
+ 293:App/src/app_fusion.c ****     memcpy(s_kf_state.P, P_pred_buf, sizeof(float) * 36);
+ 664              		.loc 1 293 5 view .LVU213
+ 665 0116 9022     		movs	r2, #144
+ 292:App/src/app_fusion.c ****     memcpy(s_kf_state.P, P_pred_buf, sizeof(float) * 36);
+ 666              		.loc 1 292 5 view .LVU214
+ 667 0118 84E80300 		stm	r4, {r0, r1}
+ 668              		.loc 1 293 5 is_stmt 1 view .LVU215
+ 669 011c 0749     		ldr	r1, .L47+16
+ 670 011e 04F10800 		add	r0, r4, #8
+ 671 0122 FFF7FEFF 		bl	memcpy
+ 672              	.LVL51:
+ 294:App/src/app_fusion.c **** 
+ 295:App/src/app_fusion.c ****     return LINGXI_OK;
+ 673              		.loc 1 295 5 view .LVU216
+ 296:App/src/app_fusion.c **** }
+ 674              		.loc 1 296 1 is_stmt 0 view .LVU217
+ 675 0126 0020     		movs	r0, #0
+ 676 0128 24B0     		add	sp, sp, #144
+ 677              		.cfi_def_cfa_offset 16
+ 678              		@ sp needed
+ 679 012a 70BD     		pop	{r4, r5, r6, pc}
+ 680              	.L48:
+ 681              		.align	2
+ 682              	.L47:
+ 683 012c 00007A44 		.word	1148846080
+ 684 0130 00000000 		.word	.LANCHOR0
+ 685 0134 00000000 		.word	.LANCHOR7
+ 686 0138 00000000 		.word	.LANCHOR1
+ 687 013c 00000000 		.word	.LANCHOR8
+ 688              		.cfi_endproc
+ 689              	.LFE819:
+ 691              		.section	.text.app_fusion_kalman_update,"ax",%progbits
+ 692              		.align	1
+ 693              		.p2align 2,,3
+ 694              		.global	app_fusion_kalman_update
+ 695              		.syntax unified
+ 696              		.thumb
+ 697              		.thumb_func
+ 698              		.fpu fpv5-d16
+ 700              	app_fusion_kalman_update:
+ 701              	.LVL52:
+ 702              	.LFB820:
+ 297:App/src/app_fusion.c **** 
+ARM GAS  /tmp/cclWbXVM.s 			page 21
+
+
+ 298:App/src/app_fusion.c **** /**
+ 299:App/src/app_fusion.c ****  * @brief  卡尔曼更新步骤 (使用 Rank-1 Update 优化)
+ 300:App/src/app_fusion.c ****  */
+ 301:App/src/app_fusion.c **** lingxi_err_t app_fusion_kalman_update(float measurement, uint8_t sensor_type)
+ 302:App/src/app_fusion.c **** {
+ 703              		.loc 1 302 1 is_stmt 1 view -0
+ 704              		.cfi_startproc
+ 705              		@ args = 0, pretend = 0, frame = 48
+ 706              		@ frame_needed = 0, uses_anonymous_args = 0
+ 303:App/src/app_fusion.c ****     if (sensor_type > 2) return LINGXI_ERR_INVALID_PARAM;
+ 707              		.loc 1 303 5 view .LVU219
+ 708              		.loc 1 303 8 is_stmt 0 view .LVU220
+ 709 0000 0228     		cmp	r0, #2
+ 710 0002 00F28880 		bhi	.L56
+ 304:App/src/app_fusion.c **** 
+ 305:App/src/app_fusion.c ****     /* 1. 计算创新 y = z - Hx (H = [0,0,1,0,0,0]) */
+ 306:App/src/app_fusion.c ****     float y = measurement - s_kf_state.z;
+ 711              		.loc 1 306 5 is_stmt 1 view .LVU221
+ 307:App/src/app_fusion.c **** 
+ 308:App/src/app_fusion.c ****     /* 2. 计算创新协方差 S = H*P*H^T + R = P[2][2] + R */
+ 309:App/src/app_fusion.c ****     float S = s_kf_state.P[2][2] + s_R[sensor_type];
+ 712              		.loc 1 309 39 is_stmt 0 view .LVU222
+ 713 0006 454B     		ldr	r3, .L65
+ 306:App/src/app_fusion.c **** 
+ 714              		.loc 1 306 39 view .LVU223
+ 715 0008 4549     		ldr	r1, .L65+4
+ 716              		.loc 1 309 39 view .LVU224
+ 717 000a 03EB8000 		add	r0, r3, r0, lsl #2
+ 718              	.LVL53:
+ 719              		.loc 1 309 11 view .LVU225
+ 720 000e D0ED007A 		vldr.32	s15, [r0]
+ 721 0012 91ED146A 		vldr.32	s12, [r1, #80]
+ 722 0016 36EE276A 		vadd.f32	s12, s12, s15
+ 310:App/src/app_fusion.c ****     if (fabsf(S) < 1e-6f) S = 1e-6f;
+ 723              		.loc 1 310 8 view .LVU226
+ 724 001a 9FED427A 		vldr.32	s14, .L65+8
+ 725              		.loc 1 310 9 view .LVU227
+ 726 001e F0EEC66A 		vabs.f32	s13, s12
+ 727              		.loc 1 310 29 view .LVU228
+ 728 0022 F4EE476A 		vcmp.f32	s13, s14
+ 306:App/src/app_fusion.c **** 
+ 729              		.loc 1 306 39 view .LVU229
+ 730 0026 91ED024A 		vldr.32	s8, [r1, #8]
+ 731              		.loc 1 310 29 view .LVU230
+ 732 002a F1EE10FA 		vmrs	APSR_nzcv, FPSCR
+ 302:App/src/app_fusion.c ****     if (sensor_type > 2) return LINGXI_ERR_INVALID_PARAM;
+ 733              		.loc 1 302 1 view .LVU231
+ 734 002e F0B5     		push	{r4, r5, r6, r7, lr}
+ 735              		.cfi_def_cfa_offset 20
+ 736              		.cfi_offset 4, -20
+ 737              		.cfi_offset 5, -16
+ 738              		.cfi_offset 6, -12
+ 739              		.cfi_offset 7, -8
+ 740              		.cfi_offset 14, -4
+ 741 0030 8DB0     		sub	sp, sp, #52
+ 742              		.cfi_def_cfa_offset 72
+ 743 0032 0A46     		mov	r2, r1
+ARM GAS  /tmp/cclWbXVM.s 			page 22
+
+
+ 744 0034 6B46     		mov	r3, sp
+ 306:App/src/app_fusion.c **** 
+ 745              		.loc 1 306 11 view .LVU232
+ 746 0036 70EE447A 		vsub.f32	s15, s0, s8
+ 747              	.LVL54:
+ 309:App/src/app_fusion.c ****     if (fabsf(S) < 1e-6f) S = 1e-6f;
+ 748              		.loc 1 309 5 is_stmt 1 view .LVU233
+ 749              		.loc 1 310 5 view .LVU234
+ 750              		.loc 1 310 29 is_stmt 0 view .LVU235
+ 751 003a 48BF     		it	mi
+ 752 003c B0EE476A 		vmovmi.f32	s12, s14
+ 753              	.LVL55:
+ 311:App/src/app_fusion.c **** 
+ 312:App/src/app_fusion.c ****     /* 3. 计算卡尔曼增益 K = P * H^T / S (H^T 是第3列) */
+ 313:App/src/app_fusion.c ****     float K[6];
+ 754              		.loc 1 313 5 is_stmt 1 view .LVU236
+ 314:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 755              		.loc 1 314 5 view .LVU237
+ 756              	.LBB38:
+ 757              		.loc 1 314 10 view .LVU238
+ 758              		.loc 1 314 21 view .LVU239
+ 759 0040 0DF1180E 		add	lr, sp, #24
+ 760              	.LVL56:
+ 761              	.L53:
+ 315:App/src/app_fusion.c ****         K[i] = s_kf_state.P[i][2] / S;
+ 762              		.loc 1 315 9 discriminator 3 view .LVU240
+ 763              		.loc 1 315 35 is_stmt 0 discriminator 3 view .LVU241
+ 764 0044 D2ED086A 		vldr.32	s13, [r2, #32]
+ 765 0048 86EE867A 		vdiv.f32	s14, s13, s12
+ 766              		.loc 1 315 14 discriminator 3 view .LVU242
+ 767 004c A3EC017A 		vstmia.32	r3!, {s14}
+ 314:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 768              		.loc 1 314 28 is_stmt 1 discriminator 3 view .LVU243
+ 314:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 769              		.loc 1 314 21 discriminator 3 view .LVU244
+ 314:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 770              		.loc 1 314 5 is_stmt 0 discriminator 3 view .LVU245
+ 771 0050 7345     		cmp	r3, lr
+ 772 0052 02F11802 		add	r2, r2, #24
+ 773 0056 F5D1     		bne	.L53
+ 774              	.LBE38:
+ 316:App/src/app_fusion.c ****     }
+ 317:App/src/app_fusion.c **** 
+ 318:App/src/app_fusion.c ****     /* 4. 更新状态 x = x + K*y */
+ 319:App/src/app_fusion.c ****     s_kf_state.x += K[0] * y;
+ 775              		.loc 1 319 5 is_stmt 1 view .LVU246
+ 776              		.loc 1 319 22 is_stmt 0 view .LVU247
+ 777 0058 DDED006A 		vldr.32	s13, [sp]
+ 320:App/src/app_fusion.c ****     s_kf_state.y += K[1] * y;
+ 778              		.loc 1 320 26 view .LVU248
+ 779 005c 9DED015A 		vldr.32	s10, [sp, #4]
+ 321:App/src/app_fusion.c ****     s_kf_state.z += K[2] * y;
+ 780              		.loc 1 321 26 view .LVU249
+ 781 0060 DDED025A 		vldr.32	s11, [sp, #8]
+ 322:App/src/app_fusion.c ****     s_kf_state.vx += K[3] * y;
+ 782              		.loc 1 322 27 view .LVU250
+ 783 0064 9DED036A 		vldr.32	s12, [sp, #12]
+ARM GAS  /tmp/cclWbXVM.s 			page 23
+
+
+ 784              	.LVL57:
+ 323:App/src/app_fusion.c ****     s_kf_state.vy += K[4] * y;
+ 785              		.loc 1 323 27 view .LVU251
+ 786 0068 9DED047A 		vldr.32	s14, [sp, #16]
+ 324:App/src/app_fusion.c ****     s_kf_state.vz += K[5] * y;
+ 787              		.loc 1 324 27 view .LVU252
+ 788 006c 9DED051A 		vldr.32	s2, [sp, #20]
+ 319:App/src/app_fusion.c ****     s_kf_state.y += K[1] * y;
+ 789              		.loc 1 319 18 view .LVU253
+ 790 0070 D1ED004A 		vldr.32	s9, [r1]
+ 320:App/src/app_fusion.c ****     s_kf_state.z += K[2] * y;
+ 791              		.loc 1 320 18 view .LVU254
+ 792 0074 91ED012A 		vldr.32	s4, [r1, #4]
+ 322:App/src/app_fusion.c ****     s_kf_state.vy += K[4] * y;
+ 793              		.loc 1 322 19 view .LVU255
+ 794 0078 D1ED032A 		vldr.32	s5, [r1, #12]
+ 323:App/src/app_fusion.c ****     s_kf_state.vz += K[5] * y;
+ 795              		.loc 1 323 19 view .LVU256
+ 796 007c 91ED043A 		vldr.32	s6, [r1, #16]
+ 797              		.loc 1 324 19 view .LVU257
+ 798 0080 D1ED053A 		vldr.32	s7, [r1, #20]
+ 319:App/src/app_fusion.c ****     s_kf_state.y += K[1] * y;
+ 799              		.loc 1 319 26 view .LVU258
+ 800 0084 66EEA71A 		vmul.f32	s3, s13, s15
+ 320:App/src/app_fusion.c ****     s_kf_state.z += K[2] * y;
+ 801              		.loc 1 320 26 view .LVU259
+ 802 0088 27EE855A 		vmul.f32	s10, s15, s10
+ 321:App/src/app_fusion.c ****     s_kf_state.vx += K[3] * y;
+ 803              		.loc 1 321 26 view .LVU260
+ 804 008c 67EEA55A 		vmul.f32	s11, s15, s11
+ 322:App/src/app_fusion.c ****     s_kf_state.vy += K[4] * y;
+ 805              		.loc 1 322 27 view .LVU261
+ 806 0090 27EE866A 		vmul.f32	s12, s15, s12
+ 323:App/src/app_fusion.c ****     s_kf_state.vz += K[5] * y;
+ 807              		.loc 1 323 27 view .LVU262
+ 808 0094 27EE877A 		vmul.f32	s14, s15, s14
+ 809              		.loc 1 324 27 view .LVU263
+ 810 0098 67EE817A 		vmul.f32	s15, s15, s2
+ 811              	.LVL58:
+ 812              	.LBB39:
+ 325:App/src/app_fusion.c **** 
+ 326:App/src/app_fusion.c ****     /* 5. 更新协方差 P = (I - KH)P = P - K(HP) [Rank-1 Update]
+ 327:App/src/app_fusion.c ****      * H*P 是 P 的第 3 行 (index 2)
+ 328:App/src/app_fusion.c ****      */
+ 329:App/src/app_fusion.c ****     float HP[6];
+ 330:App/src/app_fusion.c ****     for (int j = 0; j < 6; j++) {
+ 331:App/src/app_fusion.c ****         HP[j] = s_kf_state.P[2][j];
+ 813              		.loc 1 331 15 view .LVU264
+ 814 009c 7746     		mov	r7, lr
+ 815              	.LBE39:
+ 319:App/src/app_fusion.c ****     s_kf_state.y += K[1] * y;
+ 816              		.loc 1 319 18 view .LVU265
+ 817 009e 74EEA14A 		vadd.f32	s9, s9, s3
+ 320:App/src/app_fusion.c ****     s_kf_state.z += K[2] * y;
+ 818              		.loc 1 320 18 view .LVU266
+ 819 00a2 35EE025A 		vadd.f32	s10, s10, s4
+ 321:App/src/app_fusion.c ****     s_kf_state.vx += K[3] * y;
+ARM GAS  /tmp/cclWbXVM.s 			page 24
+
+
+ 820              		.loc 1 321 18 view .LVU267
+ 821 00a6 75EE845A 		vadd.f32	s11, s11, s8
+ 322:App/src/app_fusion.c ****     s_kf_state.vy += K[4] * y;
+ 822              		.loc 1 322 19 view .LVU268
+ 823 00aa 36EE226A 		vadd.f32	s12, s12, s5
+ 323:App/src/app_fusion.c ****     s_kf_state.vz += K[5] * y;
+ 824              		.loc 1 323 19 view .LVU269
+ 825 00ae 37EE037A 		vadd.f32	s14, s14, s6
+ 324:App/src/app_fusion.c **** 
+ 826              		.loc 1 324 19 view .LVU270
+ 827 00b2 77EEA37A 		vadd.f32	s15, s15, s7
+ 828              	.LBB40:
+ 829              		.loc 1 331 15 view .LVU271
+ 830 00b6 1C4E     		ldr	r6, .L65+12
+ 831              	.LBE40:
+ 319:App/src/app_fusion.c ****     s_kf_state.y += K[1] * y;
+ 832              		.loc 1 319 18 view .LVU272
+ 833 00b8 C1ED004A 		vstr.32	s9, [r1]
+ 320:App/src/app_fusion.c ****     s_kf_state.z += K[2] * y;
+ 834              		.loc 1 320 5 is_stmt 1 view .LVU273
+ 320:App/src/app_fusion.c ****     s_kf_state.z += K[2] * y;
+ 835              		.loc 1 320 18 is_stmt 0 view .LVU274
+ 836 00bc 81ED015A 		vstr.32	s10, [r1, #4]
+ 321:App/src/app_fusion.c ****     s_kf_state.vx += K[3] * y;
+ 837              		.loc 1 321 5 is_stmt 1 view .LVU275
+ 321:App/src/app_fusion.c ****     s_kf_state.vx += K[3] * y;
+ 838              		.loc 1 321 18 is_stmt 0 view .LVU276
+ 839 00c0 C1ED025A 		vstr.32	s11, [r1, #8]
+ 322:App/src/app_fusion.c ****     s_kf_state.vy += K[4] * y;
+ 840              		.loc 1 322 5 is_stmt 1 view .LVU277
+ 322:App/src/app_fusion.c ****     s_kf_state.vy += K[4] * y;
+ 841              		.loc 1 322 19 is_stmt 0 view .LVU278
+ 842 00c4 81ED036A 		vstr.32	s12, [r1, #12]
+ 323:App/src/app_fusion.c ****     s_kf_state.vz += K[5] * y;
+ 843              		.loc 1 323 5 is_stmt 1 view .LVU279
+ 323:App/src/app_fusion.c ****     s_kf_state.vz += K[5] * y;
+ 844              		.loc 1 323 19 is_stmt 0 view .LVU280
+ 845 00c8 81ED047A 		vstr.32	s14, [r1, #16]
+ 324:App/src/app_fusion.c **** 
+ 846              		.loc 1 324 5 is_stmt 1 view .LVU281
+ 324:App/src/app_fusion.c **** 
+ 847              		.loc 1 324 19 is_stmt 0 view .LVU282
+ 848 00cc C1ED057A 		vstr.32	s15, [r1, #20]
+ 329:App/src/app_fusion.c ****     for (int j = 0; j < 6; j++) {
+ 849              		.loc 1 329 5 is_stmt 1 view .LVU283
+ 330:App/src/app_fusion.c ****         HP[j] = s_kf_state.P[2][j];
+ 850              		.loc 1 330 5 view .LVU284
+ 851              	.LBB41:
+ 330:App/src/app_fusion.c ****         HP[j] = s_kf_state.P[2][j];
+ 852              		.loc 1 330 10 view .LVU285
+ 853              	.LVL59:
+ 330:App/src/app_fusion.c ****         HP[j] = s_kf_state.P[2][j];
+ 854              		.loc 1 330 21 view .LVU286
+ 855              		.loc 1 331 15 is_stmt 0 view .LVU287
+ 856 00d0 0FCE     		ldmia	r6!, {r0, r1, r2, r3}
+ 857              	.LVL60:
+ 858              		.loc 1 331 15 view .LVU288
+ARM GAS  /tmp/cclWbXVM.s 			page 25
+
+
+ 859 00d2 0FC7     		stmia	r7!, {r0, r1, r2, r3}
+ 860 00d4 96E80300 		ldm	r6, {r0, r1}
+ 861 00d8 87E80300 		stm	r7, {r0, r1}
+ 862              	.LVL61:
+ 863              		.loc 1 331 15 view .LVU289
+ 864 00dc 0DF1300C 		add	ip, sp, #48
+ 865 00e0 01AD     		add	r5, sp, #4
+ 866 00e2 A6F14004 		sub	r4, r6, #64
+ 867              	.L54:
+ 868              	.LVL62:
+ 869              		.loc 1 331 15 view .LVU290
+ 870              	.LBE41:
+ 871              	.LBB42:
+ 872              	.LBB43:
+ 332:App/src/app_fusion.c ****     }
+ 333:App/src/app_fusion.c **** 
+ 334:App/src/app_fusion.c ****     for (int i = 0; i < 6; i++) {
+ 335:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 873              		.loc 1 335 25 is_stmt 1 view .LVU291
+ 874 00e6 7246     		mov	r2, lr
+ 875              	.LBE43:
+ 876              	.LBE42:
+ 310:App/src/app_fusion.c **** 
+ 877              		.loc 1 310 29 is_stmt 0 view .LVU292
+ 878 00e8 2346     		mov	r3, r4
+ 879              	.LVL63:
+ 880              	.L55:
+ 881              	.LBB46:
+ 882              	.LBB44:
+ 336:App/src/app_fusion.c ****             s_kf_state.P[i][j] -= K[i] * HP[j];
+ 883              		.loc 1 336 13 is_stmt 1 discriminator 3 view .LVU293
+ 884              		.loc 1 336 44 is_stmt 0 discriminator 3 view .LVU294
+ 885 00ea B2EC017A 		vldmia.32	r2!, {s14}
+ 886              		.loc 1 336 32 discriminator 3 view .LVU295
+ 887 00ee D3ED007A 		vldr.32	s15, [r3]
+ 888              		.loc 1 336 40 discriminator 3 view .LVU296
+ 889 00f2 27EE267A 		vmul.f32	s14, s14, s13
+ 890              		.loc 1 336 32 discriminator 3 view .LVU297
+ 891 00f6 77EEC77A 		vsub.f32	s15, s15, s14
+ 335:App/src/app_fusion.c ****             s_kf_state.P[i][j] -= K[i] * HP[j];
+ 892              		.loc 1 335 9 discriminator 3 view .LVU298
+ 893 00fa 9445     		cmp	ip, r2
+ 894              		.loc 1 336 32 discriminator 3 view .LVU299
+ 895 00fc E3EC017A 		vstmia.32	r3!, {s15}
+ 335:App/src/app_fusion.c ****             s_kf_state.P[i][j] -= K[i] * HP[j];
+ 896              		.loc 1 335 32 is_stmt 1 discriminator 3 view .LVU300
+ 335:App/src/app_fusion.c ****             s_kf_state.P[i][j] -= K[i] * HP[j];
+ 897              		.loc 1 335 25 discriminator 3 view .LVU301
+ 335:App/src/app_fusion.c ****             s_kf_state.P[i][j] -= K[i] * HP[j];
+ 898              		.loc 1 335 9 is_stmt 0 discriminator 3 view .LVU302
+ 899 0100 F3D1     		bne	.L55
+ 900              	.LBE44:
+ 334:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 901              		.loc 1 334 28 is_stmt 1 discriminator 2 view .LVU303
+ 334:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ 902              		.loc 1 334 21 discriminator 2 view .LVU304
+ 334:App/src/app_fusion.c ****         for (int j = 0; j < 6; j++) {
+ARM GAS  /tmp/cclWbXVM.s 			page 26
+
+
+ 903              		.loc 1 334 5 is_stmt 0 discriminator 2 view .LVU305
+ 904 0102 7545     		cmp	r5, lr
+ 905 0104 04F11804 		add	r4, r4, #24
+ 906 0108 02D0     		beq	.L57
+ 907              	.LBB45:
+ 908              		.loc 1 336 36 view .LVU306
+ 909 010a F5EC016A 		vldmia.32	r5!, {s13}
+ 910 010e EAE7     		b	.L54
+ 911              	.L57:
+ 912              	.LBE45:
+ 913              	.LBE46:
+ 337:App/src/app_fusion.c ****         }
+ 338:App/src/app_fusion.c ****     }
+ 339:App/src/app_fusion.c **** 
+ 340:App/src/app_fusion.c ****     return LINGXI_OK;
+ 914              		.loc 1 340 12 view .LVU307
+ 915 0110 0020     		movs	r0, #0
+ 341:App/src/app_fusion.c **** }
+ 916              		.loc 1 341 1 view .LVU308
+ 917 0112 0DB0     		add	sp, sp, #52
+ 918              		.cfi_def_cfa_offset 20
+ 919              		@ sp needed
+ 920 0114 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 921              	.LVL64:
+ 922              	.L56:
+ 923              		.cfi_def_cfa_offset 0
+ 924              		.cfi_restore 4
+ 925              		.cfi_restore 5
+ 926              		.cfi_restore 6
+ 927              		.cfi_restore 7
+ 928              		.cfi_restore 14
+ 303:App/src/app_fusion.c **** 
+ 929              		.loc 1 303 33 view .LVU309
+ 930 0116 6FF00100 		mvn	r0, #1
+ 931              	.LVL65:
+ 932              		.loc 1 341 1 view .LVU310
+ 933 011a 7047     		bx	lr
+ 934              	.L66:
+ 935              		.align	2
+ 936              	.L65:
+ 937 011c 00000000 		.word	.LANCHOR2
+ 938 0120 00000000 		.word	.LANCHOR0
+ 939 0124 BD378635 		.word	897988541
+ 940 0128 48000000 		.word	.LANCHOR0+72
+ 941              		.cfi_endproc
+ 942              	.LFE820:
+ 944              		.section	.text.app_fusion_update,"ax",%progbits
+ 945              		.align	1
+ 946              		.p2align 2,,3
+ 947              		.global	app_fusion_update
+ 948              		.syntax unified
+ 949              		.thumb
+ 950              		.thumb_func
+ 951              		.fpu fpv5-d16
+ 953              	app_fusion_update:
+ 954              	.LVL66:
+ 955              	.LFB812:
+ARM GAS  /tmp/cclWbXVM.s 			page 27
+
+
+  69:App/src/app_fusion.c ****     if (data == NULL) return LINGXI_ERR_INVALID_PARAM;
+ 956              		.loc 1 69 1 is_stmt 1 view -0
+ 957              		.cfi_startproc
+ 958              		@ args = 0, pretend = 0, frame = 32
+ 959              		@ frame_needed = 0, uses_anonymous_args = 0
+  70:App/src/app_fusion.c ****     if (!s_fusion_initialized) return LINGXI_ERR_NOT_INIT;
+ 960              		.loc 1 70 5 view .LVU312
+  69:App/src/app_fusion.c ****     if (data == NULL) return LINGXI_ERR_INVALID_PARAM;
+ 961              		.loc 1 69 1 is_stmt 0 view .LVU313
+ 962 0000 70B5     		push	{r4, r5, r6, lr}
+ 963              		.cfi_def_cfa_offset 16
+ 964              		.cfi_offset 4, -16
+ 965              		.cfi_offset 5, -12
+ 966              		.cfi_offset 6, -8
+ 967              		.cfi_offset 14, -4
+ 968 0002 88B0     		sub	sp, sp, #32
+ 969              		.cfi_def_cfa_offset 48
+  70:App/src/app_fusion.c ****     if (!s_fusion_initialized) return LINGXI_ERR_NOT_INIT;
+ 970              		.loc 1 70 8 view .LVU314
+ 971 0004 0028     		cmp	r0, #0
+ 972 0006 00F09680 		beq	.L74
+  71:App/src/app_fusion.c **** 
+ 973              		.loc 1 71 5 is_stmt 1 view .LVU315
+  71:App/src/app_fusion.c **** 
+ 974              		.loc 1 71 9 is_stmt 0 view .LVU316
+ 975 000a 4C4B     		ldr	r3, .L92
+ 976 000c 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+  71:App/src/app_fusion.c **** 
+ 977              		.loc 1 71 8 view .LVU317
+ 978 000e 002B     		cmp	r3, #0
+ 979 0010 00F08E80 		beq	.L75
+  74:App/src/app_fusion.c **** 
+ 980              		.loc 1 74 5 is_stmt 1 view .LVU318
+  74:App/src/app_fusion.c **** 
+ 981              		.loc 1 74 26 is_stmt 0 view .LVU319
+ 982 0014 8646     		mov	lr, r0
+ 983 0016 0DF1040C 		add	ip, sp, #4
+ 984 001a 0446     		mov	r4, r0
+ 985 001c BEE80F00 		ldmia	lr!, {r0, r1, r2, r3}
+ 986              	.LVL67:
+  74:App/src/app_fusion.c **** 
+ 987              		.loc 1 74 26 view .LVU320
+ 988 0020 ACE80F00 		stmia	ip!, {r0, r1, r2, r3}
+ 989 0024 9EE80700 		ldm	lr, {r0, r1, r2}
+ 990 0028 8CE80700 		stm	ip, {r0, r1, r2}
+ 991              	.LVL68:
+  79:App/src/app_fusion.c ****     uint32_t current_tick = HAL_GetTick();
+ 992              		.loc 1 79 5 is_stmt 1 view .LVU321
+  80:App/src/app_fusion.c ****     uint32_t dt_ms = (last_tick == 0) ? 10 : (current_tick - last_tick);
+ 993              		.loc 1 80 5 view .LVU322
+  80:App/src/app_fusion.c ****     uint32_t dt_ms = (last_tick == 0) ? 10 : (current_tick - last_tick);
+ 994              		.loc 1 80 29 is_stmt 0 view .LVU323
+ 995 002c FFF7FEFF 		bl	HAL_GetTick
+ 996              	.LVL69:
+  81:App/src/app_fusion.c ****     last_tick = current_tick;
+ 997              		.loc 1 81 33 view .LVU324
+ 998 0030 434A     		ldr	r2, .L92+4
+ARM GAS  /tmp/cclWbXVM.s 			page 28
+
+
+  80:App/src/app_fusion.c ****     uint32_t dt_ms = (last_tick == 0) ? 10 : (current_tick - last_tick);
+ 999              		.loc 1 80 29 view .LVU325
+ 1000 0032 0546     		mov	r5, r0
+ 1001              	.LVL70:
+  81:App/src/app_fusion.c ****     last_tick = current_tick;
+ 1002              		.loc 1 81 5 is_stmt 1 view .LVU326
+  81:App/src/app_fusion.c ****     last_tick = current_tick;
+ 1003              		.loc 1 81 33 is_stmt 0 view .LVU327
+ 1004 0034 1368     		ldr	r3, [r2]
+  81:App/src/app_fusion.c ****     last_tick = current_tick;
+ 1005              		.loc 1 81 44 view .LVU328
+ 1006 0036 002B     		cmp	r3, #0
+ 1007 0038 4FD1     		bne	.L88
+ 1008 003a 0A20     		movs	r0, #10
+ 1009              	.LVL71:
+  82:App/src/app_fusion.c **** 
+ 1010              		.loc 1 82 5 is_stmt 1 view .LVU329
+  82:App/src/app_fusion.c **** 
+ 1011              		.loc 1 82 15 is_stmt 0 view .LVU330
+ 1012 003c 1560     		str	r5, [r2]
+  84:App/src/app_fusion.c **** 
+ 1013              		.loc 1 84 5 is_stmt 1 view .LVU331
+ 1014 003e FFF7FEFF 		bl	app_fusion_kalman_predict
+ 1015              	.LVL72:
+  87:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->tof_distance_mm, 0);
+ 1016              		.loc 1 87 5 view .LVU332
+  87:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->tof_distance_mm, 0);
+ 1017              		.loc 1 87 8 is_stmt 0 view .LVU333
+ 1018 0042 A378     		ldrb	r3, [r4, #2]	@ zero_extendqisi2
+ 1019 0044 002B     		cmp	r3, #0
+ 1020 0046 4FD1     		bne	.L89
+ 1021              	.LVL73:
+ 1022              	.L70:
+  90:App/src/app_fusion.c ****         app_fusion_kalman_update(data->uwb_distance_m * 1000.0f, 1);
+ 1023              		.loc 1 90 5 is_stmt 1 view .LVU334
+  90:App/src/app_fusion.c ****         app_fusion_kalman_update(data->uwb_distance_m * 1000.0f, 1);
+ 1024              		.loc 1 90 8 is_stmt 0 view .LVU335
+ 1025 0048 237A     		ldrb	r3, [r4, #8]	@ zero_extendqisi2
+ 1026 004a 002B     		cmp	r3, #0
+ 1027 004c 57D1     		bne	.L90
+ 1028              	.L71:
+  93:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->vision_distance_mm, 2);
+ 1029              		.loc 1 93 5 is_stmt 1 view .LVU336
+  93:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->vision_distance_mm, 2);
+ 1030              		.loc 1 93 13 is_stmt 0 view .LVU337
+ 1031 004e 227B     		ldrb	r2, [r4, #12]	@ zero_extendqisi2
+  93:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->vision_distance_mm, 2);
+ 1032              		.loc 1 93 8 view .LVU338
+ 1033 0050 002A     		cmp	r2, #0
+ 1034 0052 60D1     		bne	.L91
+ 1035              	.L72:
+  98:App/src/app_fusion.c ****     
+ 1036              		.loc 1 98 5 is_stmt 1 view .LVU339
+  98:App/src/app_fusion.c ****     
+ 1037              		.loc 1 98 45 is_stmt 0 view .LVU340
+ 1038 0054 3B4B     		ldr	r3, .L92+8
+ 100:App/src/app_fusion.c ****                           (data->uwb_valid ? 1 : 0) + 
+ARM GAS  /tmp/cclWbXVM.s 			page 29
+
+
+ 1039              		.loc 1 100 48 view .LVU341
+ 1040 0056 A078     		ldrb	r0, [r4, #2]	@ zero_extendqisi2
+  98:App/src/app_fusion.c ****     
+ 1041              		.loc 1 98 45 view .LVU342
+ 1042 0058 9968     		ldr	r1, [r3, #8]	@ float
+ 1043              	.LVL74:
+ 100:App/src/app_fusion.c ****                           (data->uwb_valid ? 1 : 0) + 
+ 1044              		.loc 1 100 5 is_stmt 1 view .LVU343
+ 101:App/src/app_fusion.c ****                           (data->vision_valid ? 1 : 0);
+ 1045              		.loc 1 101 48 is_stmt 0 view .LVU344
+ 1046 005a 237A     		ldrb	r3, [r4, #8]	@ zero_extendqisi2
+ 1047 005c 003B     		subs	r3, r3, #0
+ 1048 005e 18BF     		it	ne
+ 1049 0060 0123     		movne	r3, #1
+ 100:App/src/app_fusion.c ****                           (data->uwb_valid ? 1 : 0) + 
+ 1050              		.loc 1 100 53 view .LVU345
+ 1051 0062 0028     		cmp	r0, #0
+ 1052 0064 18BF     		it	ne
+ 1053 0066 0133     		addne	r3, r3, #1
+ 100:App/src/app_fusion.c ****                           (data->uwb_valid ? 1 : 0) + 
+ 1054              		.loc 1 100 13 view .LVU346
+ 1055 0068 002A     		cmp	r2, #0
+ 1056 006a 18BF     		it	ne
+ 1057 006c 0133     		addne	r3, r3, #1
+ 1058              	.LVL75:
+ 103:App/src/app_fusion.c ****     local_res.timestamp_ms = current_tick;
+ 1059              		.loc 1 103 5 is_stmt 1 view .LVU347
+ 103:App/src/app_fusion.c ****     local_res.timestamp_ms = current_tick;
+ 1060              		.loc 1 103 76 is_stmt 0 view .LVU348
+ 1061 006e 002B     		cmp	r3, #0
+ 1062 0070 5BD0     		beq	.L77
+ 103:App/src/app_fusion.c ****     local_res.timestamp_ms = current_tick;
+ 1063              		.loc 1 103 49 discriminator 1 view .LVU349
+ 1064 0072 07EE903A 		vmov	s15, r3	@ int
+ 103:App/src/app_fusion.c ****     local_res.timestamp_ms = current_tick;
+ 1065              		.loc 1 103 76 discriminator 1 view .LVU350
+ 1066 0076 F0EE086A 		vmov.f32	s13, #3.0e+0
+ 103:App/src/app_fusion.c ****     local_res.timestamp_ms = current_tick;
+ 1067              		.loc 1 103 49 discriminator 1 view .LVU351
+ 1068 007a F8EE677A 		vcvt.f32.u32	s15, s15
+ 103:App/src/app_fusion.c ****     local_res.timestamp_ms = current_tick;
+ 1069              		.loc 1 103 76 discriminator 1 view .LVU352
+ 1070 007e 87EEA67A 		vdiv.f32	s14, s15, s13
+ 1071              	.L73:
+ 1072              	.LVL76:
+ 104:App/src/app_fusion.c **** 
+ 1073              		.loc 1 104 5 is_stmt 1 discriminator 4 view .LVU353
+ 107:App/src/app_fusion.c ****     
+ 1074              		.loc 1 107 5 discriminator 4 view .LVU354
+ 112:App/src/app_fusion.c ****     
+ 1075              		.loc 1 112 5 is_stmt 0 discriminator 4 view .LVU355
+ 1076 0082 8DED067A 		vstr.32	s14, [sp, #24]
+ 1077 0086 0DF1040C 		add	ip, sp, #4
+ 119:App/src/app_fusion.c **** 
+ 1078              		.loc 1 119 11 discriminator 4 view .LVU356
+ 1079 008a 6646     		mov	r6, ip
+ 112:App/src/app_fusion.c ****     
+ARM GAS  /tmp/cclWbXVM.s 			page 30
+
+
+ 1080              		.loc 1 112 5 discriminator 4 view .LVU357
+ 1081 008c 0795     		str	r5, [sp, #28]
+ 121:App/src/app_fusion.c **** }
+ 1082              		.loc 1 121 12 discriminator 4 view .LVU358
+ 1083 008e 0025     		movs	r5, #0
+ 1084              	.LVL77:
+ 107:App/src/app_fusion.c ****     
+ 1085              		.loc 1 107 27 discriminator 4 view .LVU359
+ 1086 0090 2D48     		ldr	r0, .L92+12
+ 112:App/src/app_fusion.c ****     
+ 1087              		.loc 1 112 5 discriminator 4 view .LVU360
+ 1088 0092 0591     		str	r1, [sp, #20]	@ float
+ 107:App/src/app_fusion.c ****     
+ 1089              		.loc 1 107 27 discriminator 4 view .LVU361
+ 1090 0094 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 1091              	.LVL78:
+ 112:App/src/app_fusion.c ****     
+ 1092              		.loc 1 112 12 discriminator 4 view .LVU362
+ 1093 0096 2D49     		ldr	r1, .L92+16
+ 1094              	.LVL79:
+ 107:App/src/app_fusion.c ****     
+ 1095              		.loc 1 107 13 discriminator 4 view .LVU363
+ 1096 0098 C3F10103 		rsb	r3, r3, #1
+ 112:App/src/app_fusion.c ****     
+ 1097              		.loc 1 112 12 discriminator 4 view .LVU364
+ 1098 009c DAB2     		uxtb	r2, r3
+ 1099              	.LVL80:
+ 112:App/src/app_fusion.c ****     
+ 1100              		.loc 1 112 12 discriminator 4 view .LVU365
+ 1101 009e C2EBC202 		rsb	r2, r2, r2, lsl #3
+ 112:App/src/app_fusion.c ****     
+ 1102              		.loc 1 112 5 discriminator 4 view .LVU366
+ 1103 00a2 01EB820E 		add	lr, r1, r2, lsl #2
+ 110:App/src/app_fusion.c ****     
+ 1104              		.loc 1 110 14 discriminator 4 view .LVU367
+ 1105 00a6 2A4A     		ldr	r2, .L92+20
+ 107:App/src/app_fusion.c ****     
+ 1106              		.loc 1 107 13 discriminator 4 view .LVU368
+ 1107 00a8 DBB2     		uxtb	r3, r3
+ 1108              	.LVL81:
+ 110:App/src/app_fusion.c ****     
+ 1109              		.loc 1 110 5 is_stmt 1 discriminator 4 view .LVU369
+ 110:App/src/app_fusion.c ****     
+ 1110              		.loc 1 110 14 is_stmt 0 discriminator 4 view .LVU370
+ 1111 00aa 1168     		ldr	r1, [r2]
+ 1112 00ac 0131     		adds	r1, r1, #1
+ 1113 00ae 1160     		str	r1, [r2]
+ 112:App/src/app_fusion.c ****     
+ 1114              		.loc 1 112 5 is_stmt 1 discriminator 4 view .LVU371
+ 115:App/src/app_fusion.c ****     s_version++;
+ 1115              		.loc 1 115 18 is_stmt 0 discriminator 4 view .LVU372
+ 1116 00b0 0370     		strb	r3, [r0]
+ 116:App/src/app_fusion.c **** 
+ 1117              		.loc 1 116 14 discriminator 4 view .LVU373
+ 1118 00b2 1368     		ldr	r3, [r2]
+ 1119              	.LVL82:
+ 116:App/src/app_fusion.c **** 
+ARM GAS  /tmp/cclWbXVM.s 			page 31
+
+
+ 1120              		.loc 1 116 14 discriminator 4 view .LVU374
+ 1121 00b4 0133     		adds	r3, r3, #1
+ 1122 00b6 1360     		str	r3, [r2]
+ 1123              	.LVL83:
+ 112:App/src/app_fusion.c ****     
+ 1124              		.loc 1 112 5 discriminator 4 view .LVU375
+ 1125 00b8 BCE80F00 		ldmia	ip!, {r0, r1, r2, r3}
+ 1126 00bc AEE80F00 		stmia	lr!, {r0, r1, r2, r3}
+ 1127 00c0 9CE80700 		ldm	ip, {r0, r1, r2}
+ 1128 00c4 8EE80700 		stm	lr, {r0, r1, r2}
+ 115:App/src/app_fusion.c ****     s_version++;
+ 1129              		.loc 1 115 5 is_stmt 1 discriminator 4 view .LVU376
+ 116:App/src/app_fusion.c **** 
+ 1130              		.loc 1 116 5 discriminator 4 view .LVU377
+ 119:App/src/app_fusion.c **** 
+ 1131              		.loc 1 119 5 discriminator 4 view .LVU378
+ 119:App/src/app_fusion.c **** 
+ 1132              		.loc 1 119 11 is_stmt 0 discriminator 4 view .LVU379
+ 1133 00c8 0FCE     		ldmia	r6!, {r0, r1, r2, r3}
+ 1134 00ca 0FC4     		stmia	r4!, {r0, r1, r2, r3}
+ 1135              	.LVL84:
+ 119:App/src/app_fusion.c **** 
+ 1136              		.loc 1 119 11 discriminator 4 view .LVU380
+ 1137 00cc 9CE80700 		ldm	ip, {r0, r1, r2}
+ 1138 00d0 84E80700 		stm	r4, {r0, r1, r2}
+ 121:App/src/app_fusion.c **** }
+ 1139              		.loc 1 121 5 is_stmt 1 discriminator 4 view .LVU381
+ 1140              	.LVL85:
+ 1141              	.L68:
+ 122:App/src/app_fusion.c **** 
+ 1142              		.loc 1 122 1 is_stmt 0 view .LVU382
+ 1143 00d4 2846     		mov	r0, r5
+ 1144 00d6 08B0     		add	sp, sp, #32
+ 1145              		.cfi_remember_state
+ 1146              		.cfi_def_cfa_offset 16
+ 1147              		@ sp needed
+ 1148 00d8 70BD     		pop	{r4, r5, r6, pc}
+ 1149              	.LVL86:
+ 1150              	.L88:
+ 1151              		.cfi_restore_state
+  81:App/src/app_fusion.c ****     last_tick = current_tick;
+ 1152              		.loc 1 81 44 discriminator 1 view .LVU383
+ 1153 00da C01A     		subs	r0, r0, r3
+ 1154              	.LVL87:
+  82:App/src/app_fusion.c **** 
+ 1155              		.loc 1 82 5 is_stmt 1 discriminator 1 view .LVU384
+  82:App/src/app_fusion.c **** 
+ 1156              		.loc 1 82 15 is_stmt 0 discriminator 1 view .LVU385
+ 1157 00dc 1560     		str	r5, [r2]
+  84:App/src/app_fusion.c **** 
+ 1158              		.loc 1 84 5 is_stmt 1 discriminator 1 view .LVU386
+ 1159 00de FFF7FEFF 		bl	app_fusion_kalman_predict
+ 1160              	.LVL88:
+  87:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->tof_distance_mm, 0);
+ 1161              		.loc 1 87 5 discriminator 1 view .LVU387
+  87:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->tof_distance_mm, 0);
+ 1162              		.loc 1 87 8 is_stmt 0 discriminator 1 view .LVU388
+ARM GAS  /tmp/cclWbXVM.s 			page 32
+
+
+ 1163 00e2 A378     		ldrb	r3, [r4, #2]	@ zero_extendqisi2
+ 1164 00e4 002B     		cmp	r3, #0
+ 1165 00e6 AFD0     		beq	.L70
+ 1166              	.L89:
+  88:App/src/app_fusion.c ****     }
+ 1167              		.loc 1 88 9 is_stmt 1 view .LVU389
+ 1168 00e8 2388     		ldrh	r3, [r4]
+ 1169 00ea 0020     		movs	r0, #0
+ 1170 00ec 00EE103A 		vmov	s0, r3	@ int
+ 1171 00f0 B8EE400A 		vcvt.f32.u32	s0, s0
+ 1172 00f4 FFF7FEFF 		bl	app_fusion_kalman_update
+ 1173              	.LVL89:
+  90:App/src/app_fusion.c ****         app_fusion_kalman_update(data->uwb_distance_m * 1000.0f, 1);
+ 1174              		.loc 1 90 5 view .LVU390
+  90:App/src/app_fusion.c ****         app_fusion_kalman_update(data->uwb_distance_m * 1000.0f, 1);
+ 1175              		.loc 1 90 8 is_stmt 0 view .LVU391
+ 1176 00f8 237A     		ldrb	r3, [r4, #8]	@ zero_extendqisi2
+ 1177 00fa 002B     		cmp	r3, #0
+ 1178 00fc A7D0     		beq	.L71
+ 1179              	.L90:
+  91:App/src/app_fusion.c ****     }
+ 1180              		.loc 1 91 9 is_stmt 1 view .LVU392
+ 1181 00fe 94ED010A 		vldr.32	s0, [r4, #4]
+ 1182 0102 DFED147A 		vldr.32	s15, .L92+24
+ 1183 0106 0120     		movs	r0, #1
+ 1184 0108 20EE270A 		vmul.f32	s0, s0, s15
+ 1185 010c FFF7FEFF 		bl	app_fusion_kalman_update
+ 1186              	.LVL90:
+  93:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->vision_distance_mm, 2);
+ 1187              		.loc 1 93 5 view .LVU393
+  93:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->vision_distance_mm, 2);
+ 1188              		.loc 1 93 13 is_stmt 0 view .LVU394
+ 1189 0110 227B     		ldrb	r2, [r4, #12]	@ zero_extendqisi2
+  93:App/src/app_fusion.c ****         app_fusion_kalman_update((float)data->vision_distance_mm, 2);
+ 1190              		.loc 1 93 8 view .LVU395
+ 1191 0112 002A     		cmp	r2, #0
+ 1192 0114 9ED0     		beq	.L72
+ 1193              	.L91:
+  94:App/src/app_fusion.c ****     }
+ 1194              		.loc 1 94 9 is_stmt 1 view .LVU396
+ 1195 0116 6389     		ldrh	r3, [r4, #10]
+ 1196 0118 0220     		movs	r0, #2
+ 1197 011a 00EE103A 		vmov	s0, r3	@ int
+ 1198 011e B8EE400A 		vcvt.f32.u32	s0, s0
+ 1199 0122 FFF7FEFF 		bl	app_fusion_kalman_update
+ 1200              	.LVL91:
+ 102:App/src/app_fusion.c ****     local_res.confidence = (valid_count > 0) ? ((float)valid_count / 3.0f) : 0.0f;
+ 1201              		.loc 1 102 32 is_stmt 0 view .LVU397
+ 1202 0126 227B     		ldrb	r2, [r4, #12]	@ zero_extendqisi2
+ 1203 0128 94E7     		b	.L72
+ 1204              	.LVL92:
+ 1205              	.L77:
+ 103:App/src/app_fusion.c ****     local_res.timestamp_ms = current_tick;
+ 1206              		.loc 1 103 76 view .LVU398
+ 1207 012a 9FED0B7A 		vldr.32	s14, .L92+28
+ 1208 012e A8E7     		b	.L73
+ 1209              	.LVL93:
+ARM GAS  /tmp/cclWbXVM.s 			page 33
+
+
+ 1210              	.L75:
+  71:App/src/app_fusion.c **** 
+ 1211              		.loc 1 71 39 view .LVU399
+ 1212 0130 6FF00505 		mvn	r5, #5
+ 1213 0134 CEE7     		b	.L68
+ 1214              	.L74:
+  70:App/src/app_fusion.c ****     if (!s_fusion_initialized) return LINGXI_ERR_NOT_INIT;
+ 1215              		.loc 1 70 30 view .LVU400
+ 1216 0136 6FF00105 		mvn	r5, #1
+ 1217 013a CBE7     		b	.L68
+ 1218              	.L93:
+ 1219              		.align	2
+ 1220              	.L92:
+ 1221 013c 00000000 		.word	.LANCHOR6
+ 1222 0140 00000000 		.word	.LANCHOR9
+ 1223 0144 00000000 		.word	.LANCHOR0
+ 1224 0148 00000000 		.word	.LANCHOR4
+ 1225 014c 00000000 		.word	.LANCHOR3
+ 1226 0150 00000000 		.word	.LANCHOR5
+ 1227 0154 00007A44 		.word	1148846080
+ 1228 0158 00000000 		.word	0
+ 1229              		.cfi_endproc
+ 1230              	.LFE812:
+ 1232              		.section	.bss.P_pred_buf.1,"aw",%nobits
+ 1233              		.align	2
+ 1234              		.set	.LANCHOR8,. + 0
+ 1237              	P_pred_buf.1:
+ 1238 0000 00000000 		.space	144
+ 1238      00000000 
+ 1238      00000000 
+ 1238      00000000 
+ 1238      00000000 
+ 1239              		.section	.bss.last_tick.2,"aw",%nobits
+ 1240              		.align	2
+ 1241              		.set	.LANCHOR9,. + 0
+ 1244              	last_tick.2:
+ 1245 0000 00000000 		.space	4
+ 1246              		.section	.bss.s_Q,"aw",%nobits
+ 1247              		.align	2
+ 1248              		.set	.LANCHOR1,. + 0
+ 1251              	s_Q:
+ 1252 0000 00000000 		.space	144
+ 1252      00000000 
+ 1252      00000000 
+ 1252      00000000 
+ 1252      00000000 
+ 1253              		.section	.bss.s_R,"aw",%nobits
+ 1254              		.align	2
+ 1255              		.set	.LANCHOR2,. + 0
+ 1258              	s_R:
+ 1259 0000 00000000 		.space	12
+ 1259      00000000 
+ 1259      00000000 
+ 1260              		.section	.bss.s_active_idx,"aw",%nobits
+ 1261              		.set	.LANCHOR4,. + 0
+ 1264              	s_active_idx:
+ 1265 0000 00       		.space	1
+ARM GAS  /tmp/cclWbXVM.s 			page 34
+
+
+ 1266              		.section	.bss.s_fusion_bufs,"aw",%nobits
+ 1267              		.align	2
+ 1268              		.set	.LANCHOR3,. + 0
+ 1271              	s_fusion_bufs:
+ 1272 0000 00000000 		.space	56
+ 1272      00000000 
+ 1272      00000000 
+ 1272      00000000 
+ 1272      00000000 
+ 1273              		.section	.bss.s_fusion_initialized,"aw",%nobits
+ 1274              		.set	.LANCHOR6,. + 0
+ 1277              	s_fusion_initialized:
+ 1278 0000 00       		.space	1
+ 1279              		.section	.bss.s_kf_state,"aw",%nobits
+ 1280              		.align	2
+ 1281              		.set	.LANCHOR0,. + 0
+ 1284              	s_kf_state:
+ 1285 0000 00000000 		.space	168
+ 1285      00000000 
+ 1285      00000000 
+ 1285      00000000 
+ 1285      00000000 
+ 1286              		.section	.bss.s_version,"aw",%nobits
+ 1287              		.align	2
+ 1288              		.set	.LANCHOR5,. + 0
+ 1291              	s_version:
+ 1292 0000 00000000 		.space	4
+ 1293              		.section	.bss.x_pred_buf.0,"aw",%nobits
+ 1294              		.align	2
+ 1295              		.set	.LANCHOR7,. + 0
+ 1298              	x_pred_buf.0:
+ 1299 0000 00000000 		.space	24
+ 1299      00000000 
+ 1299      00000000 
+ 1299      00000000 
+ 1299      00000000 
+ 1300              		.text
+ 1301              	.Letext0:
+ 1302              		.file 2 "/usr/lib/gcc/arm-none-eabi/10.3.1/include/stdint.h"
+ 1303              		.file 3 "App/inc/lingxi_bl.h"
+ 1304              		.file 4 "App/inc/app_fusion.h"
+ 1305              		.file 5 "Core/Inc/portmacrocommon.h"
+ 1306              		.file 6 "Drivers/STM32N6xx_HAL_Driver/Inc/stm32n6xx_hal.h"
+ 1307              		.file 7 "<built-in>"
+ARM GAS  /tmp/cclWbXVM.s 			page 35
+
+
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 app_fusion.c
+     /tmp/cclWbXVM.s:22     .text.app_fusion_init:0000000000000000 $t
+     /tmp/cclWbXVM.s:35     .text.app_fusion_init:0000000000000000 app_fusion_init
+     /tmp/cclWbXVM.s:227    .text.app_fusion_init:0000000000000098 $d
+     /tmp/cclWbXVM.s:244    .text.app_fusion_get_result:0000000000000000 $t
+     /tmp/cclWbXVM.s:252    .text.app_fusion_get_result:0000000000000000 app_fusion_get_result
+     /tmp/cclWbXVM.s:392    .text.app_fusion_get_result:0000000000000090 $d
+     /tmp/cclWbXVM.s:400    .text.app_fusion_kalman_predict:0000000000000000 $t
+     /tmp/cclWbXVM.s:408    .text.app_fusion_kalman_predict:0000000000000000 app_fusion_kalman_predict
+     /tmp/cclWbXVM.s:683    .text.app_fusion_kalman_predict:000000000000012c $d
+     /tmp/cclWbXVM.s:692    .text.app_fusion_kalman_update:0000000000000000 $t
+     /tmp/cclWbXVM.s:700    .text.app_fusion_kalman_update:0000000000000000 app_fusion_kalman_update
+     /tmp/cclWbXVM.s:937    .text.app_fusion_kalman_update:000000000000011c $d
+     /tmp/cclWbXVM.s:945    .text.app_fusion_update:0000000000000000 $t
+     /tmp/cclWbXVM.s:953    .text.app_fusion_update:0000000000000000 app_fusion_update
+     /tmp/cclWbXVM.s:1221   .text.app_fusion_update:000000000000013c $d
+     /tmp/cclWbXVM.s:1233   .bss.P_pred_buf.1:0000000000000000 $d
+     /tmp/cclWbXVM.s:1237   .bss.P_pred_buf.1:0000000000000000 P_pred_buf.1
+     /tmp/cclWbXVM.s:1240   .bss.last_tick.2:0000000000000000 $d
+     /tmp/cclWbXVM.s:1244   .bss.last_tick.2:0000000000000000 last_tick.2
+     /tmp/cclWbXVM.s:1247   .bss.s_Q:0000000000000000 $d
+     /tmp/cclWbXVM.s:1251   .bss.s_Q:0000000000000000 s_Q
+     /tmp/cclWbXVM.s:1254   .bss.s_R:0000000000000000 $d
+     /tmp/cclWbXVM.s:1258   .bss.s_R:0000000000000000 s_R
+     /tmp/cclWbXVM.s:1264   .bss.s_active_idx:0000000000000000 s_active_idx
+     /tmp/cclWbXVM.s:1265   .bss.s_active_idx:0000000000000000 $d
+     /tmp/cclWbXVM.s:1267   .bss.s_fusion_bufs:0000000000000000 $d
+     /tmp/cclWbXVM.s:1271   .bss.s_fusion_bufs:0000000000000000 s_fusion_bufs
+     /tmp/cclWbXVM.s:1277   .bss.s_fusion_initialized:0000000000000000 s_fusion_initialized
+     /tmp/cclWbXVM.s:1278   .bss.s_fusion_initialized:0000000000000000 $d
+     /tmp/cclWbXVM.s:1280   .bss.s_kf_state:0000000000000000 $d
+     /tmp/cclWbXVM.s:1284   .bss.s_kf_state:0000000000000000 s_kf_state
+     /tmp/cclWbXVM.s:1287   .bss.s_version:0000000000000000 $d
+     /tmp/cclWbXVM.s:1291   .bss.s_version:0000000000000000 s_version
+     /tmp/cclWbXVM.s:1294   .bss.x_pred_buf.0:0000000000000000 $d
+     /tmp/cclWbXVM.s:1298   .bss.x_pred_buf.0:0000000000000000 x_pred_buf.0
+
+UNDEFINED SYMBOLS
+memset
+vPortEnterCritical
+vPortExitCritical
+memcpy
+HAL_GetTick

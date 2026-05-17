@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dev environment</title>
+<style>
+:root {
+  --white: #FFFFFF;
+  --gray-50: #F8FAFC;
+  --gray-100: #F1F5F9;
+  --gray-200: #E2E8F0;
+  --gray-300: #CBD5E1;
+  --gray-500: #64748B;
+  --gray-600: #475569;
+  --gray-800: #1E293B;
+  --gray-900: #0F172A;
+  --orange: #FF6B35;
+  --orange-light: #FF8A5C;
+  --orange-pale: #FFF5F0;
+  --green: #2ECC71;
+  --green-pale: #E8F8F0;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  background: #F8FAFC;
+  color: var(--gray-800);
+  line-height: 1.7;
+  padding: 24px;
+  font-size: 14px;
+}
+.container { max-width: 1000px; margin: 0 auto; }
+
+/* Header - 白色卡片 + 橙色左边框 */
+header {
+  background: var(--white);
+  border-left: 4px solid var(--orange);
+  padding: 24px 28px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-md);
+}
+header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--orange);
+  margin-bottom: 6px;
+}
+header div {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+}
+
+/* Section cards */
+.section, .block {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+/* Headings */
+h2 {
+  color: var(--gray-900);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 24px 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--orange);
+}
+h3 {
+  color: var(--gray-800);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 20px 0 10px 0;
+}
+h4 {
+  color: var(--gray-600);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 14px 0 6px 0;
+}
+
+/* Tables - 白色表头 + 橙色下边框 */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+th {
+  background: var(--white);
+  color: var(--orange);
+  font-weight: 700;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 2px solid var(--orange);
+  font-size: 0.8rem;
+}
+td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--gray-200);
+  background: var(--white);
+}
+tr:nth-child(even) td { background: var(--gray-50); }
+tr:hover td { background: var(--orange-pale); }
+
+/* Tags */
+.tag-ok { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: var(--green-pale); color: var(--green); }
+.tag-warn { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: #FEF3C7; color: #D97706; }
+.tag-err { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: #FEE2E2; color: #DC2626; }
+
+/* Info boxes - 左边框点缀 */
+.okbox {
+  background: var(--white);
+  border-left: 3px solid var(--green);
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: var(--shadow);
+}
+.crit {
+  background: var(--white);
+  border-left: 3px solid #DC2626;
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: var(--shadow);
+}
+.warnbox {
+  background: var(--white);
+  border-left: 3px solid #D97706;
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: var(--shadow);
+}
+
+/* Code */
+code {
+  background: var(--gray-100);
+  color: var(--orange);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+pre {
+  background: #1E293B;
+  color: #E2E8F0;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 14px 0;
+  font-size: 0.8rem;
+}
+pre code { background: none; color: #E2E8F0; padding: 0; }
+
+/* Lists */
+ul, ol { margin: 10px 0 10px 24px; }
+li { margin: 4px 0; }
+
+/* Paragraphs */
+p { margin: 8px 0; }
+
+/* Blockquote */
+blockquote {
+  border-left: 3px solid var(--orange);
+  padding-left: 14px;
+  margin: 14px 0;
+  color: var(--gray-500);
+}
+
+/* Horizontal rule */
+hr { border: none; height: 1px; background: var(--gray-200); margin: 24px 0; }
+
+/* Links */
+a { color: var(--orange); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Footer */
+footer {
+  margin-top: 40px;
+  background: var(--white);
+  border-top: 2px solid var(--orange);
+  padding: 16px;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>灵犀智空 BL 感知模组 — 开发环境搭建指南</h1>
+<blockquote>**版本**: v3.2</blockquote>
+<blockquote>**日期**: 2026-05-15</blockquote>
+<blockquote>**适用平台**: Ubuntu 22.04/24.04 LTS (x86_64 / aarch64)</blockquote>
+<hr>
+<h2>目录</h2>
+<ul>
+<li>[概述](#概述)</li>
+<li>[工具链安装](#工具链安装)</li>
+<li>[VSCode 配置](#vscode-配置)</li>
+<li>[构建命令](#构建命令)</li>
+<li>[调试配置](#调试配置)</li>
+<li>[常见问题](#常见问题)</li>
+</ul>
+</ul>
+<hr>
+<h2>概述</h2>
+<p>本工程为跨平台固件项目，需要两套工具链：</p>
+<hr>
+<h2>工具链安装</h2>
+<h3>1. 基础依赖</h3>
+<pre><code>sudo apt update
+sudo apt install -y \
+    git wget flex bison gperf python3 python3-pip python3-venv \
+    cmake ninja-build ccache libffi-dev libssl-dev dfu-util \
+    libusb-1.0-0-dev libncurses5-dev libncursesw5-dev \
+    build-essential libtool autoconf automake pkg-config</code></pre>
+<h3>2. ARM 工具链 (STM32)</h3>
+<p><strong>方式一：官方预编译包（推荐）</strong></p>
+<pre><code># 下载
+wget https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi.tar.xz
+
+# 解压到 /opt
+sudo tar -xJf arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi.tar.xz -C /opt/
+
+# 创建软链接
+sudo ln -sf /opt/arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi/bin/* /usr/local/bin/
+
+# 验证
+arm-none-eabi-gcc --version</code></pre>
+<p><strong>方式二：apt 安装（版本可能较旧）</strong></p>
+<pre><code>sudo apt install gcc-arm-none-eabi</code></pre>
+<h3>3. ESP-IDF (ESP32-C6)</h3>
+<pre><code># 创建工作目录
+mkdir -p ~/esp && cd ~/esp
+
+# 克隆 ESP-IDF v5.2
+git clone -b v5.2 --recursive https://github.com/espressif/esp-idf.git esp-idf-v5.2
+
+# 安装工具链
+cd esp-idf-v5.2
+./install.sh esp32c6
+
+# 设置环境变量（每次新终端需执行）
+. ./export.sh</code></pre>
+<p><strong>添加到 <code>.bashrc</code> 便捷入口：</strong></p>
+<pre><code>echo 'alias get_idf=". $HOME/esp/esp-idf-v5.2/export.sh"' >> ~/.bashrc
+source ~/.bashrc</code></pre>
+<h3>4. OpenOCD 调试器</h3>
+<pre><code># 从源码编译（支持 STM32N6 最新芯片）
+cd ~/esp  # 或任意工作目录
+git clone https://github.com/openocd-org/openocd.git
+cd openocd
+./bootstrap
+./configure --prefix=/usr/local
+make -j$(nproc)
+sudo make install
+
+# 验证
+openocd --version</code></pre>
+<p><strong>udev 规则（免 sudo 使用调试器）：</strong></p>
+<pre><code># ST-Link
+sudo cp /opt/arm-gnu-toolchain-*/share/openocd/contrib/60-openocd.rules /etc/udev/rules.d/
+# 或手动创建
+sudo tee /etc/udev/rules.d/99-stlink.rules << 'EOF'
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="3748", MODE="0666", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="374b", MODE="0666", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="3752", MODE="0666", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="374f", MODE="0666", GROUP="plugdev"
+EOF
+
+sudo udevadm control --reload-rules
+sudo udevadm trigger</code></pre>
+<hr>
+<h2>VSCode 配置</h2>
+<h3>必装插件</h3>
+<h3>工作区配置 `.vscode/settings.json`</h3>
+<pre><code>{
+    "C_Cpp.default.intelliSenseMode": "gcc-arm",
+    "C_Cpp.default.compilerPath": "/usr/local/bin/arm-none-eabi-gcc",
+    "C_Cpp.default.cStandard": "c11",
+    "C_Cpp.default.cppStandard": "c++17",
+    "cmake.configureOnOpen": false,
+    "cmake.buildDirectory": "${workspaceFolder}/stm32/build",
+    "cmake.generator": "Ninja",
+    "cmake.toolchainFile": "${workspaceFolder}/stm32/cmake/arm-none-eabi-gcc.cmake",
+    "files.associations": {
+        "*.h": "c",
+        "*.c": "c"
+    },
+    "editor.formatOnSave": true,
+    "C_Cpp.formatting": "clangFormat",
+    "C_Cpp.clang_format_style": "{ BasedOnStyle: LLVM, IndentWidth: 4, ColumnLimit: 100 }"
+}</code></pre>
+<h3>启动配置 `.vscode/launch.json`</h3>
+<pre><code>{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "STM32 Debug (ST-Link)",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "openocd",
+            "executable": "${workspaceFolder}/stm32/build/lingxi-bl-stm32.elf",
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32n6x.cfg"
+            ],
+            "svdFile": "${workspaceFolder}/stm32/STM32N657.svd",
+            "runToEntryPoint": "main",
+            "preLaunchTask": "CMake: build"
+        },
+        {
+            "name": "STM32 Debug (J-Link)",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "jlink",
+            "executable": "${workspaceFolder}/stm32/build/lingxi-bl-stm32.elf",
+            "device": "STM32N657L0H3Q",
+            "interface": "swd",
+            "runToEntryPoint": "main",
+            "preLaunchTask": "CMake: build"
+        },
+        {
+            "name": "ESP32-C6 Debug",
+            "type": "espidf",
+            "request": "launch",
+            "verifyBinaries": true
+        }
+    ]
+}</code></pre>
+<h3>任务配置 `.vscode/tasks.json`</h3>
+<pre><code>{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build STM32",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build", "${workspaceFolder}/stm32/build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Build ESP32",
+            "type": "shell",
+            "command": "idf.py",
+            "args": [
+                "-C", "${workspaceFolder}/esp32",
+                "build"
+            ],
+            "group": "build",
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "Flash STM32",
+            "type": "shell",
+            "command": "openocd",
+            "args": [
+                "-f", "interface/stlink.cfg",
+                "-f", "target/stm32n6x.cfg",
+                "-c", "program ${workspaceFolder}/stm32/build/lingxi-bl-stm32.bin 0x08000000 verify reset exit"
+            ],
+            "group": "build"
+        },
+        {
+            "label": "Flash ESP32",
+            "type": "shell",
+            "command": "idf.py",
+            "args": [
+                "-C", "${workspaceFolder}/esp32",
+                "flash"
+            ],
+            "group": "build"
+        }
+    ]
+}</code></pre>
+<hr>
+<h2>构建命令</h2>
+<h3>STM32 构建</h3>
+<pre><code># 首次配置
+cd stm32
+cmake -B build \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/arm-none-eabi-gcc.cmake \
+    -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release
+
+# 编译
+cmake --build build
+
+# 生成 hex / bin
+arm-none-eabi-objcopy -O ihex build/lingxi-bl-stm32.elf build/lingxi-bl-stm32.hex
+arm-none-eabi-objcopy -O binary build/lingxi-bl-stm32.elf build/lingxi-bl-stm32.bin
+
+# 打印尺寸
+arm-none-eabi-size build/lingxi-bl-stm32.elf</code></pre>
+<h3>ESP32-C6 构建</h3>
+<pre><code># 加载环境
+get_idf
+
+cd esp32
+
+# 配置（首次或修改 sdkconfig 后）
+idf.py set-target esp32c6
+idf.py menuconfig
+
+# 编译
+idf.py build
+
+# 烧录
+idf.py -p /dev/ttyUSB0 flash
+
+# 监视串口
+idf.py -p /dev/ttyUSB0 monitor
+
+# 编译+烧录+监视
+idf.py -p /dev/ttyUSB0 flash monitor</code></pre>
+<h3>清理构建</h3>
+<pre><code># STM32
+rm -rf stm32/build
+
+# ESP32
+idf.py fullclean</code></pre>
+<hr>
+<h2>调试配置</h2>
+<h3>SWD 调试 (ST-Link)</h3>
+<pre><code># 启动 OpenOCD 服务器
+openocd -f interface/stlink.cfg -f target/stm32n6x.cfg
+
+# 另开终端，连接 GDB
+arm-none-eabi-gdb build/lingxi-bl-stm32.elf
+(gdb) target remote localhost:3333
+(gdb) monitor reset halt
+(gdb) load
+(gdb) continue</code></pre>
+<h3>JTAG 调试 (J-Link)</h3>
+<pre><code># J-Link GDB Server
+JLinkGDBServer -device STM32N657L0H3Q -if SWD -speed 4000
+
+# GDB 连接
+arm-none-eabi-gdb build/lingxi-bl-stm32.elf
+(gdb) target remote localhost:2331</code></pre>
+<h3>串口日志</h3>
+<pre><code># 查看串口设备
+ls -la /dev/tty*
+
+# 串口监视（安装 picocom）
+sudo apt install picocom
+picocom -b 115200 /dev/ttyACM0
+
+# 或使用 minicom
+sudo apt install minicom
+minicom -D /dev/ttyACM0 -b 115200</code></pre>
+<h3>日志输出到文件</h3>
+<pre><code># 同时显示和保存
+picocom -b 115200 /dev/ttyACM0 | tee stm32_log_$(date +%Y%m%d_%H%M%S).txt</code></pre>
+<hr>
+<h2>常见问题</h2>
+<h3>Q1: `arm-none-eabi-gcc: command not found`</h3>
+<pre><code># 检查 PATH
+echo $PATH | grep arm
+
+# 手动添加
+export PATH=$PATH:/opt/arm-gnu-toolchain-13.2.rel1-x86_64-arm-none-eabi/bin</code></pre>
+<h3>Q2: ESP-IDF 安装失败</h3>
+<pre><code># 重新安装
+cd ~/esp/esp-idf-v5.2
+./install.sh --esp32c6
+
+# 如网络问题，使用国内镜像
+export IDF_GITHUB_ASSETS="dl.espressif.com/github_assets"
+./install.sh esp32c6</code></pre>
+<h3>Q3: OpenOCD 无法识别 ST-Link</h3>
+<pre><code># 检查设备
+lsusb | grep ST
+
+# 检查权限
+groups  # 确认用户在 plugdev 组
+
+# 重新加载 udev
+sudo udevadm control --reload-rules
+sudo udevadm trigger</code></pre>
+<h3>Q4: CMake 找不到编译器</h3>
+<pre><code># 显式指定工具链
+cmake -B build -DCMAKE_TOOLCHAIN_FILE=$(pwd)/cmake/arm-none-eabi-gcc.cmake
+
+# 检查 toolchain 文件内容
+cat cmake/arm-none-eabi-gcc.cmake</code></pre>
+<h3>Q5: 多平台同时开发</h3>
+<p>建议使用 VSCode 多根工作区：</p>
+<pre><code>// lingxi-bl-firmware.code-workspace
+{
+    "folders": [
+        { "path": "stm32", "name": "STM32" },
+        { "path": "esp32", "name": "ESP32-C6" },
+        { "path": "shared", "name": "Shared" },
+        { "path": "tests", "name": "Tests" }
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/build/**": true
+        }
+    }
+}</code></pre>
+<hr>
+<h2>参考资源</h2>
+<ul>
+<li>[ARM GNU Toolchain](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads)</li>
+<li>[ESP-IDF 文档](https://docs.espressif.com/projects/esp-idf/en/v5.2/esp32c6/)</li>
+<li>[OpenOCD 文档](https://openocd.org/doc/html/)</li>
+<li>[STM32N6 参考手册](https://www.st.com/en/microcontrollers-microprocessors/stm32n6-series.html)</li>
+</ul>
+</ul>
+<hr>
+<p><em>文档结束</em></p>
+<footer>👔 灵犀智空 Lingxi BL | 项目总监Agent | 2026-05-15</footer>
+</div>
+</body>
+</html>

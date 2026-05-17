@@ -1,0 +1,21 @@
+{
+  "cmake.sourceDirectory": "${workspaceFolder}/stm32",
+  "cmake.buildDirectory": "${workspaceFolder}/build/stm32",
+  "cmake.generator": "Ninja",
+  "cmake.configureOnOpen": true,
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "C_Cpp.default.intelliSenseMode": "gcc-arm",
+  "C_Cpp.default.compilerPath": "/usr/bin/arm-none-eabi-gcc",
+  "files.associations": {
+    "*.h": "c",
+    "*.c": "c",
+    "*.hpp": "cpp"
+  },
+  "editor.formatOnSave": true,
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "search.exclude": {
+    "build/": true,
+    "**/CMakeFiles/": true
+  }
+}

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>README</title>
+<style>
+:root {
+  --white: #FFFFFF;
+  --gray-50: #F8FAFC;
+  --gray-100: #F1F5F9;
+  --gray-200: #E2E8F0;
+  --gray-300: #CBD5E1;
+  --gray-500: #64748B;
+  --gray-600: #475569;
+  --gray-800: #1E293B;
+  --gray-900: #0F172A;
+  --orange: #FF6B35;
+  --orange-light: #FF8A5C;
+  --orange-pale: #FFF5F0;
+  --green: #2ECC71;
+  --green-pale: #E8F8F0;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  background: #F8FAFC;
+  color: var(--gray-800);
+  line-height: 1.7;
+  padding: 24px;
+  font-size: 14px;
+}
+.container { max-width: 1000px; margin: 0 auto; }
+
+/* Header - 白色卡片 + 橙色左边框 */
+header {
+  background: var(--white);
+  border-left: 4px solid var(--orange);
+  padding: 24px 28px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-md);
+}
+header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--orange);
+  margin-bottom: 6px;
+}
+header div {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+}
+
+/* Section cards */
+.section, .block {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+/* Headings */
+h2 {
+  color: var(--gray-900);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 24px 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--orange);
+}
+h3 {
+  color: var(--gray-800);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 20px 0 10px 0;
+}
+h4 {
+  color: var(--gray-600);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 14px 0 6px 0;
+}
+
+/* Tables - 白色表头 + 橙色下边框 */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+th {
+  background: var(--white);
+  color: var(--orange);
+  font-weight: 700;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 2px solid var(--orange);
+  font-size: 0.8rem;
+}
+td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--gray-200);
+  background: var(--white);
+}
+tr:nth-child(even) td { background: var(--gray-50); }
+tr:hover td { background: var(--orange-pale); }
+
+/* Tags */
+.tag-ok { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: var(--green-pale); color: var(--green); }
+.tag-warn { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: #FEF3C7; color: #D97706; }
+.tag-err { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: #FEE2E2; color: #DC2626; }
+
+/* Info boxes - 左边框点缀 */
+.okbox {
+  background: var(--white);
+  border-left: 3px solid var(--green);
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: var(--shadow);
+}
+.crit {
+  background: var(--white);
+  border-left: 3px solid #DC2626;
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: var(--shadow);
+}
+.warnbox {
+  background: var(--white);
+  border-left: 3px solid #D97706;
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: var(--shadow);
+}
+
+/* Code */
+code {
+  background: var(--gray-100);
+  color: var(--orange);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+pre {
+  background: #1E293B;
+  color: #E2E8F0;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 14px 0;
+  font-size: 0.8rem;
+}
+pre code { background: none; color: #E2E8F0; padding: 0; }
+
+/* Lists */
+ul, ol { margin: 10px 0 10px 24px; }
+li { margin: 4px 0; }
+
+/* Paragraphs */
+p { margin: 8px 0; }
+
+/* Blockquote */
+blockquote {
+  border-left: 3px solid var(--orange);
+  padding-left: 14px;
+  margin: 14px 0;
+  color: var(--gray-500);
+}
+
+/* Horizontal rule */
+hr { border: none; height: 1px; background: var(--gray-200); margin: 24px 0; }
+
+/* Links */
+a { color: var(--orange); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Footer */
+footer {
+  margin-top: 40px;
+  background: var(--white);
+  border-top: 2px solid var(--orange);
+  padding: 16px;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>灵犀智空 Lingxi BL 感知模组 — 固件工程</h1>
+<h2>工程概述</h2>
+<p>VSCode + Linux 环境下的跨平台固件工程，支持 STM32N6（主控）和 ESP32-C6（通信）。</p>
+<h2>目录结构</h2>
+<pre><code>lingxi-bl-firmware/
+├── .vscode/              # VSCode配置
+├── stm32/                # STM32N657主控固件
+│   ├── Core/             # 核心代码
+│   ├── Drivers/          # HAL驱动
+│   ├── Middlewares/      # FreeRTOS等中间件
+│   ├── App/              # 应用层
+│   └── CMakeLists.txt    # CMake构建
+├── esp32/                # ESP32-C6通信固件
+│   ├── main/             # 主程序
+│   ├── components/       # 组件
+│   └── CMakeLists.txt    # CMake构建
+├── shared/               # 共享代码
+│   ├── protocol/         # 通信协议
+│   └── utils/            # 工具函数
+├── tests/                # 单元测试
+├── tools/                # 开发工具
+└── docs/                 # 文档</code></pre>
+<h2>快速开始</h2>
+<h3>环境要求</h3>
+<ul>
+<li>VSCode + CMake Tools插件</li>
+<li>arm-none-eabi-gcc (STM32)</li>
+<li>ESP-IDF v5.2+ (ESP32-C6)</li>
+<li>OpenOCD (调试)</li>
+</ul>
+</ul>
+<h3>STM32构建</h3>
+<pre><code>cd stm32
+cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/arm-none-eabi-gcc.cmake -G Ninja
+cmake --build build</code></pre>
+<h3>ESP32构建</h3>
+<pre><code>cd esp32
+idf.py build
+idf.py flash</code></pre>
+<h2>系统架构</h2>
+<ul>
+<li><strong>STM32N657</strong>: 主控 + Neural-ART NPU（目标检测/避障/跟踪）</li>
+<li><strong>ESP32-C6</strong>: SDIO Slave + WiFi 6 + BLE 5 + Zigbee</li>
+<li><strong>通信协议</strong>: 自定义轻量协议 over SDIO</li>
+</ul>
+</ul>
+<h2>版本</h2>
+<table>
+<tr><th>v3.2</th><th>2026-05-15</th></tr>
+</table>
+<footer>👔 灵犀智空 Lingxi BL | 项目总监Agent | 2026-05-15</footer>
+</div>
+</body>
+</html>

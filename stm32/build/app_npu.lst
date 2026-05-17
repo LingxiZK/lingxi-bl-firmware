@@ -1,0 +1,462 @@
+ARM GAS  /tmp/ccjxbEIT.s 			page 1
+
+
+   1              		.arch armv8.1-m.main
+   2              		.arch_extension dsp
+   3              		.arch_extension fp
+   4              		.arch_extension fp.dp
+   5              		.arch_extension mve
+   6              		.eabi_attribute 28, 1
+   7              		.eabi_attribute 20, 1
+   8              		.eabi_attribute 21, 1
+   9              		.eabi_attribute 23, 3
+  10              		.eabi_attribute 24, 1
+  11              		.eabi_attribute 25, 1
+  12              		.eabi_attribute 26, 1
+  13              		.eabi_attribute 30, 2
+  14              		.eabi_attribute 34, 1
+  15              		.eabi_attribute 38, 1
+  16              		.eabi_attribute 18, 4
+  17              		.file	"app_npu.c"
+  18              		.text
+  19              	.Ltext0:
+  20              		.cfi_sections	.debug_frame
+  21              		.section	.text.app_npu_init,"ax",%progbits
+  22              		.align	1
+  23              		.p2align 2,,3
+  24              		.global	app_npu_init
+  25              		.arch armv8.1-m.main
+  26              		.arch_extension dsp
+  27              		.arch_extension fp
+  28              		.arch_extension fp.dp
+  29              		.arch_extension mve
+  30              		.syntax unified
+  31              		.thumb
+  32              		.thumb_func
+  33              		.fpu fpv5-d16
+  35              	app_npu_init:
+  36              	.LVL0:
+  37              	.LFB811:
+  38              		.file 1 "App/src/app_npu.c"
+   1:App/src/app_npu.c **** /**
+   2:App/src/app_npu.c ****   ******************************************************************************
+   3:App/src/app_npu.c ****   * @file    app_npu.c
+   4:App/src/app_npu.c ****   * @brief   Neural-ART NPU 集成实现 (STM32Cube.AI X-CUBE-AI)
+   5:App/src/app_npu.c ****   * @author  Lingxi Team
+   6:App/src/app_npu.c ****   * @version v3.2
+   7:App/src/app_npu.c ****   * @date    2026-05-15
+   8:App/src/app_npu.c ****   ******************************************************************************
+   9:App/src/app_npu.c ****   * @attention
+  10:App/src/app_npu.c ****   * - 基于 STM32Cube.AI X-CUBE-AI 运行时
+  11:App/src/app_npu.c ****   * - 输入预处理: 640x480 RAW -> 224x224 RGB
+  12:App/src/app_npu.c ****   * - 推理引擎: 输入 -> NPU -> 输出 -> 后处理
+  13:App/src/app_npu.c ****   * - 量化: INT8 baseline, INT4 experimental
+  14:App/src/app_npu.c ****   ******************************************************************************
+  15:App/src/app_npu.c ****   */
+  16:App/src/app_npu.c **** 
+  17:App/src/app_npu.c **** #include "app_npu.h"
+  18:App/src/app_npu.c **** 
+  19:App/src/app_npu.c **** /* =============================================================================
+  20:App/src/app_npu.c ****  * X-CUBE-AI 存根模式
+ARM GAS  /tmp/ccjxbEIT.s 			page 2
+
+
+  21:App/src/app_npu.c ****  * ==========================================================================*/
+  22:App/src/app_npu.c **** /* X-CUBE-AI 运行时 (STM32Cube.AI) 默认不可用, 提供存根实现.
+  23:App/src/app_npu.c ****  * 安装 X-CUBE-AI 后, 取消以下 #error 注释以启用 NPU 加速. */
+  24:App/src/app_npu.c **** #if !defined(USE_X_CUBE_AI) || !USE_X_CUBE_AI
+  25:App/src/app_npu.c **** 
+  26:App/src/app_npu.c **** /* 私有变量 */
+  27:App/src/app_npu.c **** static volatile uint8_t s_npu_initialized = 0;
+  28:App/src/app_npu.c **** 
+  29:App/src/app_npu.c **** lingxi_err_t app_npu_init(const npu_config_t *config)
+  30:App/src/app_npu.c **** {
+  39              		.loc 1 30 1 view -0
+  40              		.cfi_startproc
+  41              		@ args = 0, pretend = 0, frame = 0
+  42              		@ frame_needed = 0, uses_anonymous_args = 0
+  43              		@ link register save eliminated.
+  31:App/src/app_npu.c ****     (void)config;
+  44              		.loc 1 31 5 view .LVU1
+  32:App/src/app_npu.c ****     s_npu_initialized = 1;
+  45              		.loc 1 32 5 view .LVU2
+  46              		.loc 1 32 23 is_stmt 0 view .LVU3
+  47 0000 0122     		movs	r2, #1
+  48 0002 024B     		ldr	r3, .L3
+  33:App/src/app_npu.c ****     LX_DEBUG_PRINT("NPU stub init (X-CUBE-AI not available)");
+  34:App/src/app_npu.c ****     return LINGXI_OK;
+  35:App/src/app_npu.c **** }
+  49              		.loc 1 35 1 view .LVU4
+  50 0004 0020     		movs	r0, #0
+  51              	.LVL1:
+  32:App/src/app_npu.c ****     s_npu_initialized = 1;
+  52              		.loc 1 32 23 view .LVU5
+  53 0006 1A70     		strb	r2, [r3]
+  33:App/src/app_npu.c ****     LX_DEBUG_PRINT("NPU stub init (X-CUBE-AI not available)");
+  54              		.loc 1 33 5 is_stmt 1 view .LVU6
+  34:App/src/app_npu.c **** }
+  55              		.loc 1 34 5 view .LVU7
+  56              		.loc 1 35 1 is_stmt 0 view .LVU8
+  57 0008 7047     		bx	lr
+  58              	.L4:
+  59 000a 00BF     		.align	2
+  60              	.L3:
+  61 000c 00000000 		.word	.LANCHOR0
+  62              		.cfi_endproc
+  63              	.LFE811:
+  65              		.section	.text.app_npu_load_model_from_flash,"ax",%progbits
+  66              		.align	1
+  67              		.p2align 2,,3
+  68              		.global	app_npu_load_model_from_flash
+  69              		.syntax unified
+  70              		.thumb
+  71              		.thumb_func
+  72              		.fpu fpv5-d16
+  74              	app_npu_load_model_from_flash:
+  75              	.LVL2:
+  76              	.LFB812:
+  36:App/src/app_npu.c **** 
+  37:App/src/app_npu.c **** lingxi_err_t app_npu_load_model_from_flash(npu_model_type_t model_type, uint32_t flash_addr)
+  38:App/src/app_npu.c **** {
+ARM GAS  /tmp/ccjxbEIT.s 			page 3
+
+
+  77              		.loc 1 38 1 is_stmt 1 view -0
+  78              		.cfi_startproc
+  79              		@ args = 0, pretend = 0, frame = 0
+  80              		@ frame_needed = 0, uses_anonymous_args = 0
+  81              		@ link register save eliminated.
+  39:App/src/app_npu.c ****     (void)model_type; (void)flash_addr;
+  82              		.loc 1 39 5 view .LVU10
+  83              		.loc 1 39 23 view .LVU11
+  40:App/src/app_npu.c ****     return LINGXI_OK;
+  84              		.loc 1 40 5 view .LVU12
+  41:App/src/app_npu.c **** }
+  85              		.loc 1 41 1 is_stmt 0 view .LVU13
+  86 0000 0020     		movs	r0, #0
+  87              	.LVL3:
+  88              		.loc 1 41 1 view .LVU14
+  89 0002 7047     		bx	lr
+  90              		.cfi_endproc
+  91              	.LFE812:
+  93              		.section	.text.app_npu_load_model_from_sdram,"ax",%progbits
+  94              		.align	1
+  95              		.p2align 2,,3
+  96              		.global	app_npu_load_model_from_sdram
+  97              		.syntax unified
+  98              		.thumb
+  99              		.thumb_func
+ 100              		.fpu fpv5-d16
+ 102              	app_npu_load_model_from_sdram:
+ 103              	.LFB820:
+ 104              		.cfi_startproc
+ 105              		@ args = 0, pretend = 0, frame = 0
+ 106              		@ frame_needed = 0, uses_anonymous_args = 0
+ 107              		@ link register save eliminated.
+ 108 0000 0020     		movs	r0, #0
+ 109 0002 7047     		bx	lr
+ 110              		.cfi_endproc
+ 111              	.LFE820:
+ 113              		.section	.text.app_npu_preprocess,"ax",%progbits
+ 114              		.align	1
+ 115              		.p2align 2,,3
+ 116              		.global	app_npu_preprocess
+ 117              		.syntax unified
+ 118              		.thumb
+ 119              		.thumb_func
+ 120              		.fpu fpv5-d16
+ 122              	app_npu_preprocess:
+ 123              	.LVL4:
+ 124              	.LFB814:
+  42:App/src/app_npu.c **** 
+  43:App/src/app_npu.c **** lingxi_err_t app_npu_load_model_from_sdram(npu_model_type_t model_type, uint32_t sdram_addr)
+  44:App/src/app_npu.c **** {
+  45:App/src/app_npu.c ****     (void)model_type; (void)sdram_addr;
+  46:App/src/app_npu.c ****     return LINGXI_OK;
+  47:App/src/app_npu.c **** }
+  48:App/src/app_npu.c **** 
+  49:App/src/app_npu.c **** lingxi_err_t app_npu_preprocess(const uint8_t *input_frame, uint16_t src_width, uint16_t src_height
+  50:App/src/app_npu.c **** {
+ 125              		.loc 1 50 1 is_stmt 1 view -0
+ARM GAS  /tmp/ccjxbEIT.s 			page 4
+
+
+ 126              		.cfi_startproc
+ 127              		@ args = 0, pretend = 0, frame = 0
+ 128              		@ frame_needed = 0, uses_anonymous_args = 0
+ 129              		@ link register save eliminated.
+  51:App/src/app_npu.c ****     (void)input_frame; (void)src_width; (void)src_height;
+ 130              		.loc 1 51 5 view .LVU16
+ 131              		.loc 1 51 24 view .LVU17
+ 132              		.loc 1 51 41 view .LVU18
+  52:App/src/app_npu.c ****     return LINGXI_OK;
+ 133              		.loc 1 52 5 view .LVU19
+  53:App/src/app_npu.c **** }
+ 134              		.loc 1 53 1 is_stmt 0 view .LVU20
+ 135 0000 0020     		movs	r0, #0
+ 136              	.LVL5:
+ 137              		.loc 1 53 1 view .LVU21
+ 138 0002 7047     		bx	lr
+ 139              		.cfi_endproc
+ 140              	.LFE814:
+ 142              		.section	.text.app_npu_run,"ax",%progbits
+ 143              		.align	1
+ 144              		.p2align 2,,3
+ 145              		.global	app_npu_run
+ 146              		.syntax unified
+ 147              		.thumb
+ 148              		.thumb_func
+ 149              		.fpu fpv5-d16
+ 151              	app_npu_run:
+ 152              	.LVL6:
+ 153              	.LFB815:
+  54:App/src/app_npu.c **** 
+  55:App/src/app_npu.c **** lingxi_err_t app_npu_run(npu_infer_result_t *result)
+  56:App/src/app_npu.c **** {
+ 154              		.loc 1 56 1 is_stmt 1 view -0
+ 155              		.cfi_startproc
+ 156              		@ args = 0, pretend = 0, frame = 0
+ 157              		@ frame_needed = 0, uses_anonymous_args = 0
+  57:App/src/app_npu.c ****     if (!s_npu_initialized) return LINGXI_ERR_NOT_INIT;
+ 158              		.loc 1 57 5 view .LVU23
+ 159              		.loc 1 57 9 is_stmt 0 view .LVU24
+ 160 0000 0C4B     		ldr	r3, .L15
+ 161 0002 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 162              		.loc 1 57 8 view .LVU25
+ 163 0004 93B1     		cbz	r3, .L10
+  58:App/src/app_npu.c ****     memset(result, 0, sizeof(npu_infer_result_t));
+ 164              		.loc 1 58 5 is_stmt 1 view .LVU26
+  56:App/src/app_npu.c ****     if (!s_npu_initialized) return LINGXI_ERR_NOT_INIT;
+ 165              		.loc 1 56 1 is_stmt 0 view .LVU27
+ 166 0006 10B5     		push	{r4, lr}
+ 167              		.cfi_def_cfa_offset 8
+ 168              		.cfi_offset 4, -8
+ 169              		.cfi_offset 14, -4
+ 170              		.loc 1 58 5 view .LVU28
+ 171 0008 0021     		movs	r1, #0
+ 172 000a B822     		movs	r2, #184
+ 173 000c 0446     		mov	r4, r0
+ 174 000e FFF7FEFF 		bl	memset
+ 175              	.LVL7:
+ARM GAS  /tmp/ccjxbEIT.s 			page 5
+
+
+  59:App/src/app_npu.c ****     result->obstacle_detected = 1;
+ 176              		.loc 1 59 5 is_stmt 1 view .LVU29
+ 177              		.loc 1 59 31 is_stmt 0 view .LVU30
+ 178 0012 0122     		movs	r2, #1
+  60:App/src/app_npu.c ****     result->edge_detected = 0;
+  61:App/src/app_npu.c ****     result->track_target_valid = 0;
+  62:App/src/app_npu.c ****     result->inference_time_us = 1000;
+ 179              		.loc 1 62 31 view .LVU31
+ 180 0014 4FF47A73 		mov	r3, #1000
+  59:App/src/app_npu.c ****     result->obstacle_detected = 1;
+ 181              		.loc 1 59 31 view .LVU32
+ 182 0018 2270     		strb	r2, [r4]
+  60:App/src/app_npu.c ****     result->edge_detected = 0;
+ 183              		.loc 1 60 5 is_stmt 1 view .LVU33
+  61:App/src/app_npu.c ****     result->inference_time_us = 1000;
+ 184              		.loc 1 61 5 view .LVU34
+ 185              		.loc 1 62 5 view .LVU35
+ 186              		.loc 1 62 31 is_stmt 0 view .LVU36
+ 187 001a C4F8B030 		str	r3, [r4, #176]
+  63:App/src/app_npu.c ****     result->timestamp_ms = HAL_GetTick();
+ 188              		.loc 1 63 5 is_stmt 1 view .LVU37
+ 189              		.loc 1 63 28 is_stmt 0 view .LVU38
+ 190 001e FFF7FEFF 		bl	HAL_GetTick
+ 191              	.LVL8:
+ 192 0022 0346     		mov	r3, r0
+  64:App/src/app_npu.c ****     return LINGXI_OK;
+ 193              		.loc 1 64 12 view .LVU39
+ 194 0024 0020     		movs	r0, #0
+  63:App/src/app_npu.c ****     result->timestamp_ms = HAL_GetTick();
+ 195              		.loc 1 63 26 view .LVU40
+ 196 0026 C4F8B430 		str	r3, [r4, #180]
+ 197              		.loc 1 64 5 is_stmt 1 view .LVU41
+  65:App/src/app_npu.c **** }
+ 198              		.loc 1 65 1 is_stmt 0 view .LVU42
+ 199 002a 10BD     		pop	{r4, pc}
+ 200              	.LVL9:
+ 201              	.L10:
+ 202              		.cfi_def_cfa_offset 0
+ 203              		.cfi_restore 4
+ 204              		.cfi_restore 14
+  57:App/src/app_npu.c ****     memset(result, 0, sizeof(npu_infer_result_t));
+ 205              		.loc 1 57 36 view .LVU43
+ 206 002c 6FF00500 		mvn	r0, #5
+ 207              	.LVL10:
+ 208              		.loc 1 65 1 view .LVU44
+ 209 0030 7047     		bx	lr
+ 210              	.L16:
+ 211 0032 00BF     		.align	2
+ 212              	.L15:
+ 213 0034 00000000 		.word	.LANCHOR0
+ 214              		.cfi_endproc
+ 215              	.LFE815:
+ 217              		.section	.text.app_npu_postprocess,"ax",%progbits
+ 218              		.align	1
+ 219              		.p2align 2,,3
+ 220              		.global	app_npu_postprocess
+ 221              		.syntax unified
+ARM GAS  /tmp/ccjxbEIT.s 			page 6
+
+
+ 222              		.thumb
+ 223              		.thumb_func
+ 224              		.fpu fpv5-d16
+ 226              	app_npu_postprocess:
+ 227              	.LVL11:
+ 228              	.LFB816:
+  66:App/src/app_npu.c **** 
+  67:App/src/app_npu.c **** lingxi_err_t app_npu_postprocess(npu_infer_result_t *result)
+  68:App/src/app_npu.c **** {
+ 229              		.loc 1 68 1 is_stmt 1 view -0
+ 230              		.cfi_startproc
+ 231              		@ args = 0, pretend = 0, frame = 0
+ 232              		@ frame_needed = 0, uses_anonymous_args = 0
+ 233              		@ link register save eliminated.
+  69:App/src/app_npu.c ****     (void)result;
+ 234              		.loc 1 69 5 view .LVU46
+  70:App/src/app_npu.c ****     return LINGXI_OK;
+ 235              		.loc 1 70 5 view .LVU47
+  71:App/src/app_npu.c **** }
+ 236              		.loc 1 71 1 is_stmt 0 view .LVU48
+ 237 0000 0020     		movs	r0, #0
+ 238              	.LVL12:
+ 239              		.loc 1 71 1 view .LVU49
+ 240 0002 7047     		bx	lr
+ 241              		.cfi_endproc
+ 242              	.LFE816:
+ 244              		.section	.text.app_npu_get_stats,"ax",%progbits
+ 245              		.align	1
+ 246              		.p2align 2,,3
+ 247              		.global	app_npu_get_stats
+ 248              		.syntax unified
+ 249              		.thumb
+ 250              		.thumb_func
+ 251              		.fpu fpv5-d16
+ 253              	app_npu_get_stats:
+ 254              	.LVL13:
+ 255              	.LFB817:
+  72:App/src/app_npu.c **** 
+  73:App/src/app_npu.c **** lingxi_err_t app_npu_get_stats(uint32_t *avg_time_us, uint32_t *peak_time_us)
+  74:App/src/app_npu.c **** {
+ 256              		.loc 1 74 1 is_stmt 1 view -0
+ 257              		.cfi_startproc
+ 258              		@ args = 0, pretend = 0, frame = 0
+ 259              		@ frame_needed = 0, uses_anonymous_args = 0
+ 260              		@ link register save eliminated.
+  75:App/src/app_npu.c ****     *avg_time_us = 1000;
+ 261              		.loc 1 75 5 view .LVU51
+  74:App/src/app_npu.c ****     *avg_time_us = 1000;
+ 262              		.loc 1 74 1 is_stmt 0 view .LVU52
+ 263 0000 10B4     		push	{r4}
+ 264              		.cfi_def_cfa_offset 4
+ 265              		.cfi_offset 4, -4
+  74:App/src/app_npu.c ****     *avg_time_us = 1000;
+ 266              		.loc 1 74 1 view .LVU53
+ 267 0002 0246     		mov	r2, r0
+ 268              		.loc 1 75 18 view .LVU54
+ 269 0004 4FF47A74 		mov	r4, #1000
+ARM GAS  /tmp/ccjxbEIT.s 			page 7
+
+
+  76:App/src/app_npu.c ****     *peak_time_us = 1500;
+ 270              		.loc 1 76 19 view .LVU55
+ 271 0008 40F2DC53 		movw	r3, #1500
+  75:App/src/app_npu.c ****     *avg_time_us = 1000;
+ 272              		.loc 1 75 18 view .LVU56
+ 273 000c 1460     		str	r4, [r2]
+ 274              		.loc 1 76 5 is_stmt 1 view .LVU57
+  77:App/src/app_npu.c ****     return LINGXI_OK;
+  78:App/src/app_npu.c **** }
+ 275              		.loc 1 78 1 is_stmt 0 view .LVU58
+ 276 000e 0020     		movs	r0, #0
+ 277              	.LVL14:
+ 278              		.loc 1 78 1 view .LVU59
+ 279 0010 5DF8044B 		ldr	r4, [sp], #4
+ 280              		.cfi_restore 4
+ 281              		.cfi_def_cfa_offset 0
+  76:App/src/app_npu.c ****     *peak_time_us = 1500;
+ 282              		.loc 1 76 19 view .LVU60
+ 283 0014 0B60     		str	r3, [r1]
+  77:App/src/app_npu.c ****     return LINGXI_OK;
+ 284              		.loc 1 77 5 is_stmt 1 view .LVU61
+ 285              		.loc 1 78 1 is_stmt 0 view .LVU62
+ 286 0016 7047     		bx	lr
+ 287              		.cfi_endproc
+ 288              	.LFE817:
+ 290              		.section	.text.app_npu_set_quant_mode,"ax",%progbits
+ 291              		.align	1
+ 292              		.p2align 2,,3
+ 293              		.global	app_npu_set_quant_mode
+ 294              		.syntax unified
+ 295              		.thumb
+ 296              		.thumb_func
+ 297              		.fpu fpv5-d16
+ 299              	app_npu_set_quant_mode:
+ 300              	.LVL15:
+ 301              	.LFB818:
+  79:App/src/app_npu.c **** 
+  80:App/src/app_npu.c **** lingxi_err_t app_npu_set_quant_mode(npu_quant_mode_t mode)
+  81:App/src/app_npu.c **** {
+ 302              		.loc 1 81 1 is_stmt 1 view -0
+ 303              		.cfi_startproc
+ 304              		@ args = 0, pretend = 0, frame = 0
+ 305              		@ frame_needed = 0, uses_anonymous_args = 0
+ 306              		@ link register save eliminated.
+  82:App/src/app_npu.c ****     (void)mode;
+ 307              		.loc 1 82 5 view .LVU64
+  83:App/src/app_npu.c ****     return LINGXI_OK;
+ 308              		.loc 1 83 5 view .LVU65
+  84:App/src/app_npu.c **** }
+ 309              		.loc 1 84 1 is_stmt 0 view .LVU66
+ 310 0000 0020     		movs	r0, #0
+ 311              	.LVL16:
+ 312              		.loc 1 84 1 view .LVU67
+ 313 0002 7047     		bx	lr
+ 314              		.cfi_endproc
+ 315              	.LFE818:
+ 317              		.section	.bss.s_npu_initialized,"aw",%nobits
+ARM GAS  /tmp/ccjxbEIT.s 			page 8
+
+
+ 318              		.set	.LANCHOR0,. + 0
+ 321              	s_npu_initialized:
+ 322 0000 00       		.space	1
+ 323              		.text
+ 324              	.Letext0:
+ 325              		.file 2 "/usr/lib/gcc/arm-none-eabi/10.3.1/include/stdint.h"
+ 326              		.file 3 "App/inc/lingxi_bl.h"
+ 327              		.file 4 "App/inc/app_npu.h"
+ 328              		.file 5 "<built-in>"
+ 329              		.file 6 "Drivers/STM32N6xx_HAL_Driver/Inc/stm32n6xx_hal.h"
+ARM GAS  /tmp/ccjxbEIT.s 			page 9
+
+
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 app_npu.c
+     /tmp/ccjxbEIT.s:22     .text.app_npu_init:0000000000000000 $t
+     /tmp/ccjxbEIT.s:35     .text.app_npu_init:0000000000000000 app_npu_init
+     /tmp/ccjxbEIT.s:61     .text.app_npu_init:000000000000000c $d
+     /tmp/ccjxbEIT.s:66     .text.app_npu_load_model_from_flash:0000000000000000 $t
+     /tmp/ccjxbEIT.s:74     .text.app_npu_load_model_from_flash:0000000000000000 app_npu_load_model_from_flash
+     /tmp/ccjxbEIT.s:94     .text.app_npu_load_model_from_sdram:0000000000000000 $t
+     /tmp/ccjxbEIT.s:102    .text.app_npu_load_model_from_sdram:0000000000000000 app_npu_load_model_from_sdram
+     /tmp/ccjxbEIT.s:114    .text.app_npu_preprocess:0000000000000000 $t
+     /tmp/ccjxbEIT.s:122    .text.app_npu_preprocess:0000000000000000 app_npu_preprocess
+     /tmp/ccjxbEIT.s:143    .text.app_npu_run:0000000000000000 $t
+     /tmp/ccjxbEIT.s:151    .text.app_npu_run:0000000000000000 app_npu_run
+     /tmp/ccjxbEIT.s:213    .text.app_npu_run:0000000000000034 $d
+     /tmp/ccjxbEIT.s:218    .text.app_npu_postprocess:0000000000000000 $t
+     /tmp/ccjxbEIT.s:226    .text.app_npu_postprocess:0000000000000000 app_npu_postprocess
+     /tmp/ccjxbEIT.s:245    .text.app_npu_get_stats:0000000000000000 $t
+     /tmp/ccjxbEIT.s:253    .text.app_npu_get_stats:0000000000000000 app_npu_get_stats
+     /tmp/ccjxbEIT.s:291    .text.app_npu_set_quant_mode:0000000000000000 $t
+     /tmp/ccjxbEIT.s:299    .text.app_npu_set_quant_mode:0000000000000000 app_npu_set_quant_mode
+     /tmp/ccjxbEIT.s:321    .bss.s_npu_initialized:0000000000000000 s_npu_initialized
+     /tmp/ccjxbEIT.s:322    .bss.s_npu_initialized:0000000000000000 $d
+
+UNDEFINED SYMBOLS
+memset
+HAL_GetTick

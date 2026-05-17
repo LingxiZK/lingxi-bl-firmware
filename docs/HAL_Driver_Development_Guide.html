@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HAL Driver Development Guide</title>
+<style>
+:root {
+  --white: #FFFFFF;
+  --gray-50: #F8FAFC;
+  --gray-100: #F1F5F9;
+  --gray-200: #E2E8F0;
+  --gray-300: #CBD5E1;
+  --gray-500: #64748B;
+  --gray-600: #475569;
+  --gray-800: #1E293B;
+  --gray-900: #0F172A;
+  --orange: #FF6B35;
+  --orange-light: #FF8A5C;
+  --orange-pale: #FFF5F0;
+  --green: #2ECC71;
+  --green-pale: #E8F8F0;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  background: #F8FAFC;
+  color: var(--gray-800);
+  line-height: 1.7;
+  padding: 24px;
+  font-size: 14px;
+}
+.container { max-width: 1000px; margin: 0 auto; }
+
+/* Header - 白色卡片 + 橙色左边框 */
+header {
+  background: var(--white);
+  border-left: 4px solid var(--orange);
+  padding: 24px 28px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-md);
+}
+header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--orange);
+  margin-bottom: 6px;
+}
+header div {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+}
+
+/* Section cards */
+.section, .block {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+/* Headings */
+h2 {
+  color: var(--gray-900);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 24px 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--orange);
+}
+h3 {
+  color: var(--gray-800);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 20px 0 10px 0;
+}
+h4 {
+  color: var(--gray-600);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 14px 0 6px 0;
+}
+
+/* Tables - 白色表头 + 橙色下边框 */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+th {
+  background: var(--white);
+  color: var(--orange);
+  font-weight: 700;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 2px solid var(--orange);
+  font-size: 0.8rem;
+}
+td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--gray-200);
+  background: var(--white);
+}
+tr:nth-child(even) td { background: var(--gray-50); }
+tr:hover td { background: var(--orange-pale); }
+
+/* Tags */
+.tag-ok { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: var(--green-pale); color: var(--green); }
+.tag-warn { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: #FEF3C7; color: #D97706; }
+.tag-err { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: #FEE2E2; color: #DC2626; }
+
+/* Info boxes - 左边框点缀 */
+.okbox {
+  background: var(--white);
+  border-left: 3px solid var(--green);
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: var(--shadow);
+}
+.crit {
+  background: var(--white);
+  border-left: 3px solid #DC2626;
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: var(--shadow);
+}
+.warnbox {
+  background: var(--white);
+  border-left: 3px solid #D97706;
+  padding: 14px 18px;
+  margin: 14px 0;
+  box-shadow: var(--shadow);
+}
+
+/* Code */
+code {
+  background: var(--gray-100);
+  color: var(--orange);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+pre {
+  background: #1E293B;
+  color: #E2E8F0;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 14px 0;
+  font-size: 0.8rem;
+}
+pre code { background: none; color: #E2E8F0; padding: 0; }
+
+/* Lists */
+ul, ol { margin: 10px 0 10px 24px; }
+li { margin: 4px 0; }
+
+/* Paragraphs */
+p { margin: 8px 0; }
+
+/* Blockquote */
+blockquote {
+  border-left: 3px solid var(--orange);
+  padding-left: 14px;
+  margin: 14px 0;
+  color: var(--gray-500);
+}
+
+/* Horizontal rule */
+hr { border: none; height: 1px; background: var(--gray-200); margin: 24px 0; }
+
+/* Links */
+a { color: var(--orange); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Footer */
+footer {
+  margin-top: 40px;
+  background: var(--white);
+  border-top: 2px solid var(--orange);
+  padding: 16px;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>灵犀智空 Lingxi BL — HAL驱动开发指南</h1>
+<p><strong>日期</strong>: 2026-05-15</p>
+<p><strong>版本</strong>: v3.2</p>
+<p><strong>目标</strong>: 在VSCode工程框架下完成所有HAL驱动开发</p>
+<hr>
+<h2>1. 开发环境</h2>
+<h3>1.1 工具链</h3>
+<ul>
+<li><strong>编译器</strong>: arm-none-eabi-gcc (>= 10.3)</li>
+<li><strong>IDE</strong>: VSCode + CMake Tools + C/C++插件</li>
+<li><strong>调试器</strong>: OpenOCD + ST-Link V3</li>
+<li><strong>配置工具</strong>: STM32CubeMX 6.10+</li>
+</ul>
+</ul>
+<h3>1.2 工程路径</h3>
+<pre><code>cd /home/guotong/.openclaw/workspace/lingxi-bl-firmware/stm32/</code></pre>
+<h3>1.3 构建命令</h3>
+<pre><code># 配置
+cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/arm-none-eabi-gcc.cmake -G Ninja
+
+# 编译
+cmake --build build --parallel
+
+# 烧录
+openocd -f interface/stlink.cfg -f target/stm32n6x.cfg \
+  -c "program build/LingxiBL_STM32.elf verify reset exit"</code></pre>
+<hr>
+<h2>2. 外设驱动开发清单</h2>
+<h3>优先级P0（本周完成）</h3>
+<h3>优先级P1（下周完成）</h3>
+<h3>优先级P2（第三周）</h3>
+<hr>
+<h2>3. 各外设详细配置</h2>
+<h3>3.1 RCC时钟配置（P0）</h3>
+<p><strong>目标</strong>: 800MHz系统时钟</p>
+<pre><code>/* 时钟树配置 */
+SYSCLK  = 800 MHz  (PLL1)
+HCLK    = 400 MHz  (SYSCLK / 2)
+PCLK1   = 200 MHz  (HCLK / 2)
+PCLK2   = 200 MHz  (HCLK / 2)
+FMC_CLK = 166 MHz  (来自PLL2或PLL3)
+MIPI_CLK = 250 MHz (来自PLL3)</code></pre>
+<p><strong>注意</strong>:</p>
+<ul>
+<li>STM32N657L0H3Q支持800MHz，需确认电压和散热</li>
+<li>FMC时钟166MHz需精确匹配SDRAM</li>
+<li>MIPI时钟250MHz需满足VD55G1要求</li>
+</ul>
+</ul>
+<h3>3.2 SDMMC1配置（P0）</h3>
+<p><strong>模式</strong>: SDIO Host, 4-bit</p>
+<p><strong>引脚</strong>:</p>
+<ul>
+<li>CLK: PC12 (AF12)</li>
+<li>CMD: PD2 (AF12)</li>
+<li>D0-D3: PC8-PC11 (AF12)</li>
+</ul>
+<p><strong>时钟</strong>: 25-50MHz</p>
+<p><strong>DMA</strong>: MDMA_Channel0</p>
+<p><strong>关键代码</strong>:</p>
+<pre><code>sdmmc.Init.ClockEdge = SDMMC_CLOCK_EDGE_RISING;
+sdmmc.Init.ClockPowerSave = SDMMC_CLOCK_POWER_SAVE_DISABLE;
+sdmmc.Init.BusWide = SDMMC_BUS_WIDE_4B;
+sdmmc.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
+sdmmc.Init.ClockDiv = 2;  /* 200MHz / (2+2) = 50MHz */</code></pre>
+<h3>3.3 FMC SDRAM配置（P0）</h3>
+<p><strong>器件</strong>: IS42SM16320E-75BLI, 32-bit, 64MB, 166MHz</p>
+<p><strong>引脚</strong>:</p>
+<ul>
+<li>D0-D15: PD, PE (AF12)</li>
+<li>D16-D31: PF, PG (AF12)</li>
+<li>A0-A12: PF, PG (AF12)</li>
+<li>BA0-BA1: PG4, PG5 (AF12)</li>
+<li>SDCLK: PG8 (AF12)</li>
+<li>SDCKE0: PH2 (AF12)</li>
+<li>SDNE0: PH3 (AF12)</li>
+<li>NBL0-NBL3: PE0, PE1, PG9, PG10 (AF12)</li>
+<li>NWE: PD5 (AF12)</li>
+</ul>
+</ul>
+<p><strong>时序参数</strong> (166MHz, CL=3):</p>
+<pre><code>/* 关键时序 (以时钟周期为单位) */
+T_RP  = 3;  /* Row Precharge: 18ns / 6ns = 3 */
+T_RCD = 3;  /* RAS to CAS: 18ns / 6ns = 3 */
+T_WR  = 2;  /* Write Recovery: 12ns / 6ns = 2 */
+T_RAS = 6;  /* Row Active: 42ns / 6ns = 7 → 取7 */
+T_RC  = 9;  /* Row Cycle: 60ns / 6ns = 10 → 取10 */
+T_XSR = 10; /* Exit Self Refresh */
+T_MRD = 2;  /* Mode Register */</code></pre>
+<h3>3.4 MIPI CSI-2配置（P1）</h3>
+<p><strong>模式</strong>: 单Lane, 640×480@60fps</p>
+<p><strong>引脚</strong>:</p>
+<ul>
+<li>D0P/D0N: PH4/PH5 (AF13)</li>
+<li>CLKP/CLKN: PH6/PH7 (AF13)</li>
+</ul>
+<p><strong>数据率</strong>: 500Mbps</p>
+<p><strong>DMA</strong>: MDMA_Channel1 (双缓冲)</p>
+<p><strong>注意</strong>:</p>
+<ul>
+<li>需配置MIPI D-PHY</li>
+<li>图像格式: YUV422 (每像素2字节)</li>
+<li>每帧: 640×480×2 = 614KB</li>
+<li>帧缓冲: 双缓冲，放在SDRAM</li>
+</ul>
+</ul>
+<h3>3.5 XSPI1 OctoSPI配置（P1）</h3>
+<p><strong>器件</strong>: W25Q512, 16MB, 8线</p>
+<p><strong>引脚</strong>:</p>
+<ul>
+<li>CLK: PB2 (AF10)</li>
+<li>D0-D7: PB0, PB1, PC13, PC2, PC3, PC4, PD11, PD12 (AF10)</li>
+<li>NCS: PB6 (AF10)</li>
+</ul>
+<p><strong>时钟</strong>: 100-133MHz</p>
+<p><strong>模式</strong>: OctoSPI DTR</p>
+<h3>3.6 SPI1配置（P1）</h3>
+<p><strong>器件</strong>: DWM3000</p>
+<p><strong>引脚</strong>:</p>
+<ul>
+<li>SCK: PA5 (AF5)</li>
+<li>MISO: PA6 (AF5)</li>
+<li>MOSI: PA7 (AF5)</li>
+<li>NSS: PA4 (软件控制)</li>
+<li>IRQ: PA8 (外部中断)</li>
+<li>RST: PA11 (GPIO)</li>
+<li>SYNC: PA12 (GPIO)</li>
+</ul>
+<p><strong>时钟</strong>: 10MHz</p>
+<p><strong>模式</strong>: CPOL=0, CPHA=0</p>
+<h3>3.7 I2C1配置（P1）</h3>
+<p><strong>器件</strong>: VL53L1X</p>
+<p><strong>引脚</strong>:</p>
+<ul>
+<li>SCL: PB8 (AF4)</li>
+<li>SDA: PB9 (AF4)</li>
+<li>XSHUT: PB10 (GPIO)</li>
+<li>GPIO1: PB11 (外部中断)</li>
+</ul>
+<p><strong>时钟</strong>: 400kHz (Fast Mode)</p>
+<h3>3.8 SPI2配置（P2）</h3>
+<p><strong>器件</strong>: microSD (SPI模式)</p>
+<p><strong>引脚</strong>:</p>
+<ul>
+<li>SCK: PB13 (AF5)</li>
+<li>MISO: PB14 (AF5)</li>
+<li>MOSI: PB15 (AF5)</li>
+<li>CS: PB12 (GPIO)</li>
+<li>CD: PD3 (GPIO输入)</li>
+</ul>
+<p><strong>时钟</strong>: 25MHz</p>
+<hr>
+<h2>4. 开发顺序建议</h2>
+<h3>Week 1: 基础驱动</h3>
+<ul>
+<li><strong>Day 1-2</strong>: RCC时钟 + GPIO + UART调试</li>
+<li><strong>Day 3-4</strong>: SDMMC1 (与ESP32通信验证)</li>
+<li><strong>Day 5</strong>: FMC SDRAM (内存测试)</li>
+</ul>
+</ul>
+<h3>Week 2: 核心外设</h3>
+<ul>
+<li><strong>Day 1-3</strong>: MIPI CSI-2 (图像采集验证)</li>
+<li><strong>Day 4</strong>: XSPI1 Flash (读写测试)</li>
+<li><strong>Day 5</strong>: SPI1 + I2C1 (传感器通信)</li>
+</ul>
+</ul>
+<h3>Week 3: 完善</h3>
+<ul>
+<li><strong>Day 1-2</strong>: SPI2 microSD + GPIO中断</li>
+<li><strong>Day 3-4</strong>: DMA/MDMA优化</li>
+<li><strong>Day 5</strong>: 低功耗 + 系统整合</li>
+</ul>
+</ul>
+<hr>
+<h2>5. 调试策略</h2>
+<h3>5.1 分阶段验证</h3>
+<h3>5.2 调试工具</h3>
+<ul>
+<li><strong>OpenOCD + GDB</strong>: 断点调试</li>
+<li><strong>逻辑分析仪</strong>: MIPI/SDIO/SPI时序</li>
+<li><strong>串口助手</strong>: 协议帧查看</li>
+<li><strong>示波器</strong>: 电源纹波、时钟质量</li>
+</ul>
+</ul>
+<hr>
+<h2>6. 代码规范</h2>
+<h3>6.1 命名规范</h3>
+<pre><code>文件: lx_<module>_<device>.c/h
+函数: LX_<Module>_<Action>()
+变量: s_<name> (静态), g_<name> (全局)
+常量: LX_<NAME>_MAX/MIN/DEF</code></pre>
+<h3>6.2 错误处理</h3>
+<pre><code>typedef enum {
+    LX_OK = 0,
+    LX_ERR_TIMEOUT = -1,
+    LX_ERR_BUSY = -2,
+    LX_ERR_INVALID = -3,
+    LX_ERR_IO = -4,
+    LX_ERR_MEMORY = -5,
+} lx_err_t;</code></pre>
+<h3>6.3 注释规范</h3>
+<ul>
+<li>函数头注释（Doxygen格式）</li>
+<li>关键时序参数注释</li>
+<li>魔法数字必须说明</li>
+</ul>
+</ul>
+<hr>
+<h2>7. 交付标准</h2>
+<ul>
+<li>[ ] 所有P0外设驱动可编译通过</li>
+<li>[ ] 所有P1外设驱动通过单元测试</li>
+<li>[ ] 全系统联调通过（5个任务同时运行）</li>
+<li>[ ] 功耗测试通过（典型<2.65W，全速<3.2W）</li>
+<li>[ ] 代码审查通过（cppcheck + MISRA C:2012）</li>
+</ul>
+</ul>
+<footer>👔 灵犀智空 Lingxi BL | 项目总监Agent | 2026-05-15</footer>
+</div>
+</body>
+</html>

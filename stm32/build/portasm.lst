@@ -1,0 +1,964 @@
+ARM GAS  /tmp/ccOeALtC.s 			page 1
+
+
+   1              		.arch armv8.1-m.main
+   2              		.arch_extension dsp
+   3              		.arch_extension fp
+   4              		.arch_extension fp.dp
+   5              		.arch_extension mve
+   6              		.eabi_attribute 28, 1
+   7              		.eabi_attribute 20, 1
+   8              		.eabi_attribute 21, 1
+   9              		.eabi_attribute 23, 3
+  10              		.eabi_attribute 24, 1
+  11              		.eabi_attribute 25, 1
+  12              		.eabi_attribute 26, 1
+  13              		.eabi_attribute 30, 2
+  14              		.eabi_attribute 34, 1
+  15              		.eabi_attribute 38, 1
+  16              		.eabi_attribute 18, 4
+  17              		.file	"portasm.c"
+  18              		.text
+  19              	.Ltext0:
+  20              		.cfi_sections	.debug_frame
+  21              		.section	.text.vRestoreContextOfFirstTask,"ax",%progbits
+  22              		.align	1
+  23              		.p2align 2,,3
+  24              		.global	vRestoreContextOfFirstTask
+  25              		.arch armv8.1-m.main
+  26              		.arch_extension dsp
+  27              		.arch_extension fp
+  28              		.arch_extension fp.dp
+  29              		.arch_extension mve
+  30              		.syntax unified
+  31              		.thumb
+  32              		.thumb_func
+  33              		.fpu fpv5-d16
+  35              	vRestoreContextOfFirstTask:
+  36              	.LFB808:
+  37              		.file 1 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c"
+   1:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /*
+   2:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * FreeRTOS Kernel V10.6.2
+   3:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+   4:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  *
+   5:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * SPDX-License-Identifier: MIT
+   6:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  *
+   7:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * Permission is hereby granted, free of charge, to any person obtaining a copy of
+   8:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * this software and associated documentation files (the "Software"), to deal in
+   9:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * the Software without restriction, including without limitation the rights to
+  10:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+  11:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * the Software, and to permit persons to whom the Software is furnished to do so,
+  12:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * subject to the following conditions:
+  13:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  *
+  14:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * The above copyright notice and this permission notice shall be included in all
+  15:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * copies or substantial portions of the Software.
+  16:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  *
+  17:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  18:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+  19:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+  20:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+  21:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ARM GAS  /tmp/ccOeALtC.s 			page 2
+
+
+  22:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  23:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  *
+  24:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * https://www.FreeRTOS.org
+  25:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * https://github.com/FreeRTOS
+  26:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  *
+  27:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  */
+  28:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+  29:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /* Standard includes. */
+  30:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #include <stdint.h>
+  31:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+  32:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /* Defining MPU_WRAPPERS_INCLUDED_FROM_API_FILE ensures that PRIVILEGED_FUNCTION
+  33:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * is defined correctly and privileged functions are placed in correct sections. */
+  34:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #define MPU_WRAPPERS_INCLUDED_FROM_API_FILE
+  35:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+  36:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /* Portasm includes. */
+  37:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #include "portasm.h"
+  38:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+  39:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /* System call numbers includes. */
+  40:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #include "mpu_syscall_numbers.h"
+  41:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+  42:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /* MPU_WRAPPERS_INCLUDED_FROM_API_FILE is needed to be defined only for the
+  43:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****  * header files. */
+  44:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #undef MPU_WRAPPERS_INCLUDED_FROM_API_FILE
+  45:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+  46:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #if ( configENABLE_MPU == 1 )
+  47:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+  48:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     void vRestoreContextOfFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
+  49:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     {
+  50:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         __asm volatile
+  51:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         (
+  52:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " .syntax unified                                 \n"
+  53:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+  54:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " program_mpu_first_task:                         \n"
+  55:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, pxCurrentTCBConst2                   \n" /* Read the location of pxCurrent
+  56:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r0, [r2]                                 \n" /* r0 = pxCurrentTCB. */
+  57:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+  58:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    dmb                                          \n" /* Complete outstanding transfers
+  59:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r1, xMPUCTRLConst2                       \n" /* r1 = 0xe000ed94 [Location of M
+  60:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, [r1]                                 \n" /* Read the value of MPU_CTRL. */
+  61:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    bic r2, #1                                   \n" /* r2 = r2 & ~1 i.e. Clear the bi
+  62:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r2, [r1]                                 \n" /* Disable MPU. */
+  63:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+  64:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    adds r0, #4                                  \n" /* r0 = r0 + 4. r0 now points to 
+  65:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r1, [r0]                                 \n" /* r1 = *r0 i.e. r1 = MAIR0. */
+  66:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, xMAIR0Const2                         \n" /* r2 = 0xe000edc0 [Location of M
+  67:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r1, [r2]                                 \n" /* Program MAIR0. */
+  68:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+  69:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    adds r0, #4                                  \n" /* r0 = r0 + 4. r0 now points to 
+  70:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r1, xRNRConst2                           \n" /* r1 = 0xe000ed98 [Location of R
+  71:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, xRBARConst2                          \n" /* r2 = 0xe000ed9c [Location of R
+  72:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+  73:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    movs r3, #4                                  \n" /* r3 = 4. */
+  74:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r3, [r1]                                 \n" /* Program RNR = 4. */
+  75:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmia r0!, {r4-r11}                          \n" /* Read 4 sets of RBAR/RLAR regis
+  76:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r2, {r4-r11}                           \n" /* Write 4 set of RBAR/RLAR regis
+  77:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+  78:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #if ( configTOTAL_MPU_REGIONS == 16 )
+ARM GAS  /tmp/ccOeALtC.s 			page 3
+
+
+  79:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    movs r3, #8                                  \n" /* r3 = 8. */
+  80:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r3, [r1]                                 \n" /* Program RNR = 8. */
+  81:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmia r0!, {r4-r11}                          \n" /* Read 4 sets of RBAR/RLAR regis
+  82:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r2, {r4-r11}                           \n" /* Write 4 set of RBAR/RLAR regis
+  83:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    movs r3, #12                                 \n" /* r3 = 12. */
+  84:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r3, [r1]                                 \n" /* Program RNR = 12. */
+  85:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmia r0!, {r4-r11}                          \n" /* Read 4 sets of RBAR/RLAR regis
+  86:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r2, {r4-r11}                           \n" /* Write 4 set of RBAR/RLAR regis
+  87:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #endif /* configTOTAL_MPU_REGIONS == 16 */
+  88:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+  89:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r1, xMPUCTRLConst2                        \n" /* r1 = 0xe000ed94 [Location of M
+  90:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r2, [r1]                                  \n" /* Read the value of MPU_CTRL. */
+  91:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   orr r2, #1                                    \n" /* r2 = r2 | 1 i.e. Set the bit 0
+  92:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   str r2, [r1]                                  \n" /* Enable MPU. */
+  93:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   dsb                                           \n" /* Force memory writes before con
+  94:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+  95:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " restore_context_first_task:                     \n"
+  96:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, pxCurrentTCBConst2                   \n" /* Read the location of pxCurrent
+  97:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r0, [r2]                                 \n" /* r0 = pxCurrentTCB.*/
+  98:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r1, [r0]                                 \n" /* r1 = Location of saved context
+  99:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 100:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " restore_special_regs_first_task:                \n"
+ 101:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmdb r1!, {r2-r4, lr}                       \n" /* r2 = original PSP, r3 = PSPLIM
+ 102:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    msr psp, r2                                  \n"
+ 103:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    msr psplim, r3                               \n"
+ 104:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    msr control, r4                              \n"
+ 105:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 106:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " restore_general_regs_first_task:                \n"
+ 107:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmdb r1!, {r4-r11}                          \n" /* r4-r11 contain hardware saved 
+ 108:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r2!, {r4-r11}                          \n" /* Copy the hardware saved contex
+ 109:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmdb r1!, {r4-r11}                          \n" /* r4-r11 restored. */
+ 110:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 111:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " restore_context_done_first_task:                \n"
+ 112:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r1, [r0]                                 \n" /* Save the location where the co
+ 113:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    mov r0, #0                                   \n"
+ 114:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    msr basepri, r0                              \n" /* Ensure that interrupts are ena
+ 115:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    bx lr                                        \n"
+ 116:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 117:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " .align 4                                        \n"
+ 118:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " pxCurrentTCBConst2: .word pxCurrentTCB          \n"
+ 119:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " xMPUCTRLConst2: .word 0xe000ed94                \n"
+ 120:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " xMAIR0Const2: .word 0xe000edc0                  \n"
+ 121:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " xRNRConst2: .word 0xe000ed98                    \n"
+ 122:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " xRBARConst2: .word 0xe000ed9c                   \n"
+ 123:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         );
+ 124:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     }
+ 125:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 126:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #else /* configENABLE_MPU */
+ 127:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 128:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     void vRestoreContextOfFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
+ 129:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     {
+  38              		.loc 1 129 5 view -0
+  39              		.cfi_startproc
+  40              		@ Naked Function: prologue and epilogue provided by programmer.
+  41              		@ args = 0, pretend = 0, frame = 0
+  42              		@ frame_needed = 0, uses_anonymous_args = 0
+ 130:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         __asm volatile
+ARM GAS  /tmp/ccOeALtC.s 			page 4
+
+
+  43              		.loc 1 130 9 view .LVU1
+  44              		.syntax unified
+  45              	@ 130 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c" 1
+  46              		   .syntax unified                                 
+  47              	                                                   
+  48 0000 0B4A     	   ldr  r2, pxCurrentTCBConst2                     
+  49 0002 1168     	   ldr  r1, [r2]                                   
+  50 0004 0868     	   ldr  r0, [r1]                                   
+  51              	                                                   
+  52 0006 06C8     	   ldm  r0!, {r1-r2}                               
+  53 0008 81F30B88 	   msr  psplim, r1                                 
+  54 000c 0221     	   movs r1, #2                                     
+  55 000e 81F31488 	   msr  CONTROL, r1                                
+  56 0012 2030     	   adds r0, #32                                    
+  57 0014 80F30988 	   msr  psp, r0                                    
+  58 0018 BFF36F8F 	   isb                                             
+  59 001c 4FF00000 	   mov  r0, #0                                     
+  60 0020 80F31188 	   msr  basepri, r0                                
+  61 0024 1047     	   bx   r2                                         
+  62              	                                                   
+  63 0026 00BFAFF3 	   .align 4                                        
+  63      0080AFF3 
+  63      0080
+  64 0030 00000000 	pxCurrentTCBConst2: .word pxCurrentTCB             
+  65              	
+  66              	@ 0 "" 2
+ 131:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         (
+ 132:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   .syntax unified                                 \n"
+ 133:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 134:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr  r2, pxCurrentTCBConst2                     \n" /* Read the location of pxCurre
+ 135:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr  r1, [r2]                                   \n" /* Read pxCurrentTCB. */
+ 136:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr  r0, [r1]                                   \n" /* Read top of stack from TCB -
+ 137:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 138:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldm  r0!, {r1-r2}                               \n" /* Read from stack - r1 = PSPLI
+ 139:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   msr  psplim, r1                                 \n" /* Set this task's PSPLIM value
+ 140:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   movs r1, #2                                     \n" /* r1 = 2. */
+ 141:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   msr  CONTROL, r1                                \n" /* Switch to use PSP in the thr
+ 142:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   adds r0, #32                                    \n" /* Discard everything up to r0.
+ 143:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   msr  psp, r0                                    \n" /* This is now the new top of s
+ 144:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   isb                                             \n"
+ 145:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   mov  r0, #0                                     \n"
+ 146:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   msr  basepri, r0                                \n" /* Ensure that interrupts are e
+ 147:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   bx   r2                                         \n" /* Finally, branch to EXC_RETUR
+ 148:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 149:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   .align 4                                        \n"
+ 150:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "pxCurrentTCBConst2: .word pxCurrentTCB             \n"
+ 151:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         );
+ 152:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     }
+  67              		.loc 1 152 5 is_stmt 0 view .LVU2
+  68              		.thumb
+  69              		.syntax unified
+  70              		.cfi_endproc
+  71              	.LFE808:
+  73              		.section	.text.xIsPrivileged,"ax",%progbits
+  74              		.align	1
+  75              		.p2align 2,,3
+  76              		.global	xIsPrivileged
+ARM GAS  /tmp/ccOeALtC.s 			page 5
+
+
+  77              		.syntax unified
+  78              		.thumb
+  79              		.thumb_func
+  80              		.fpu fpv5-d16
+  82              	xIsPrivileged:
+  83              	.LFB809:
+ 153:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 154:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #endif /* configENABLE_MPU */
+ 155:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /*-----------------------------------------------------------*/
+ 156:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 157:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** BaseType_t xIsPrivileged( void ) /* __attribute__ (( naked )) */
+ 158:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** {
+  84              		.loc 1 158 1 is_stmt 1 view -0
+  85              		.cfi_startproc
+  86              		@ Naked Function: prologue and epilogue provided by programmer.
+  87              		@ args = 0, pretend = 0, frame = 0
+  88              		@ frame_needed = 0, uses_anonymous_args = 0
+ 159:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     __asm volatile
+  89              		.loc 1 159 5 view .LVU4
+  90              		.syntax unified
+  91              	@ 159 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c" 1
+  92              		   .syntax unified                                 
+  93              	                                                   
+  94 0000 EFF31480 	   mrs r0, control                                 
+  95 0004 10F0010F 	   tst r0, #1                                      
+  96 0008 14BF     	   ite ne                                          
+  97 000a 0020     	   movne r0, #0                                    
+  98 000c 0120     	   moveq r0, #1                                    
+  99 000e 7047     	   bx lr                                           
+ 100              	                                                   
+ 101              	   .align 4                                        
+ 102              	
+ 103              	@ 0 "" 2
+ 160:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     (
+ 161:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   .syntax unified                                 \n"
+ 162:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "                                                   \n"
+ 163:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   mrs r0, control                                 \n" /* r0 = CONTROL. */
+ 164:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   tst r0, #1                                      \n" /* Perform r0 & 1 (bitwise AND) and
+ 165:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   ite ne                                          \n"
+ 166:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   movne r0, #0                                    \n" /* CONTROL[0]!=0. Return false to i
+ 167:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   moveq r0, #1                                    \n" /* CONTROL[0]==0. Return true to in
+ 168:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   bx lr                                           \n" /* Return. */
+ 169:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "                                                   \n"
+ 170:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   .align 4                                        \n"
+ 171:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         ::: "r0", "memory"
+ 172:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     );
+ 173:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** }
+ 104              		.loc 1 173 1 is_stmt 0 view .LVU5
+ 105              		.thumb
+ 106              		.syntax unified
+ 107              		.cfi_endproc
+ 108              	.LFE809:
+ 110              		.section	.text.vRaisePrivilege,"ax",%progbits
+ 111              		.align	1
+ 112              		.p2align 2,,3
+ 113              		.global	vRaisePrivilege
+ 114              		.syntax unified
+ARM GAS  /tmp/ccOeALtC.s 			page 6
+
+
+ 115              		.thumb
+ 116              		.thumb_func
+ 117              		.fpu fpv5-d16
+ 119              	vRaisePrivilege:
+ 120              	.LFB810:
+ 174:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /*-----------------------------------------------------------*/
+ 175:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 176:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** void vRaisePrivilege( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
+ 177:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** {
+ 121              		.loc 1 177 1 is_stmt 1 view -0
+ 122              		.cfi_startproc
+ 123              		@ Naked Function: prologue and epilogue provided by programmer.
+ 124              		@ args = 0, pretend = 0, frame = 0
+ 125              		@ frame_needed = 0, uses_anonymous_args = 0
+ 178:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     __asm volatile
+ 126              		.loc 1 178 5 view .LVU7
+ 127              		.syntax unified
+ 128              	@ 178 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c" 1
+ 129              		   .syntax unified                                 
+ 130              	                                                   
+ 131 0000 EFF31480 	   mrs  r0, control                                
+ 132 0004 20F00100 	   bic r0, #1                                      
+ 133 0008 80F31488 	   msr  control, r0                                
+ 134 000c 7047     	   bx lr                                           
+ 135              	
+ 136              	@ 0 "" 2
+ 179:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     (
+ 180:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   .syntax unified                                 \n"
+ 181:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "                                                   \n"
+ 182:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   mrs  r0, control                                \n" /* Read the CONTROL register. */
+ 183:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   bic r0, #1                                      \n" /* Clear the bit 0. */
+ 184:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   msr  control, r0                                \n" /* Write back the new CONTROL value
+ 185:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   bx lr                                           \n" /* Return to the caller. */
+ 186:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         ::: "r0", "memory"
+ 187:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     );
+ 188:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** }
+ 137              		.loc 1 188 1 is_stmt 0 view .LVU8
+ 138              		.thumb
+ 139              		.syntax unified
+ 140              		.cfi_endproc
+ 141              	.LFE810:
+ 143 000e 00BF     		.section	.text.vResetPrivilege,"ax",%progbits
+ 144              		.align	1
+ 145              		.p2align 2,,3
+ 146              		.global	vResetPrivilege
+ 147              		.syntax unified
+ 148              		.thumb
+ 149              		.thumb_func
+ 150              		.fpu fpv5-d16
+ 152              	vResetPrivilege:
+ 153              	.LFB811:
+ 189:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /*-----------------------------------------------------------*/
+ 190:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 191:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** void vResetPrivilege( void ) /* __attribute__ (( naked )) */
+ 192:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** {
+ 154              		.loc 1 192 1 is_stmt 1 view -0
+ 155              		.cfi_startproc
+ARM GAS  /tmp/ccOeALtC.s 			page 7
+
+
+ 156              		@ Naked Function: prologue and epilogue provided by programmer.
+ 157              		@ args = 0, pretend = 0, frame = 0
+ 158              		@ frame_needed = 0, uses_anonymous_args = 0
+ 193:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     __asm volatile
+ 159              		.loc 1 193 5 view .LVU10
+ 160              		.syntax unified
+ 161              	@ 193 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c" 1
+ 162              		   .syntax unified                                 
+ 163              	                                                   
+ 164 0000 EFF31480 	   mrs r0, control                                 
+ 165 0004 40F00100 	   orr r0, #1                                      
+ 166 0008 80F31488 	   msr control, r0                                 
+ 167 000c 7047     	   bx lr                                           
+ 168              	
+ 169              	@ 0 "" 2
+ 194:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     (
+ 195:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   .syntax unified                                 \n"
+ 196:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "                                                   \n"
+ 197:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   mrs r0, control                                 \n" /* r0 = CONTROL. */
+ 198:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   orr r0, #1                                      \n" /* r0 = r0 | 1. */
+ 199:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   msr control, r0                                 \n" /* CONTROL = r0. */
+ 200:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   bx lr                                           \n" /* Return to the caller. */
+ 201:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         ::: "r0", "memory"
+ 202:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     );
+ 203:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** }
+ 170              		.loc 1 203 1 is_stmt 0 view .LVU11
+ 171              		.thumb
+ 172              		.syntax unified
+ 173              		.cfi_endproc
+ 174              	.LFE811:
+ 176 000e 00BF     		.section	.text.vStartFirstTask,"ax",%progbits
+ 177              		.align	1
+ 178              		.p2align 2,,3
+ 179              		.global	vStartFirstTask
+ 180              		.syntax unified
+ 181              		.thumb
+ 182              		.thumb_func
+ 183              		.fpu fpv5-d16
+ 185              	vStartFirstTask:
+ 186              	.LFB812:
+ 204:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /*-----------------------------------------------------------*/
+ 205:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 206:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** void vStartFirstTask( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
+ 207:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** {
+ 187              		.loc 1 207 1 is_stmt 1 view -0
+ 188              		.cfi_startproc
+ 189              		@ Naked Function: prologue and epilogue provided by programmer.
+ 190              		@ args = 0, pretend = 0, frame = 0
+ 191              		@ frame_needed = 0, uses_anonymous_args = 0
+ 208:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     __asm volatile
+ 192              		.loc 1 208 5 view .LVU13
+ 193              		.syntax unified
+ 194              	@ 208 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c" 1
+ 195              		   .syntax unified                                 
+ 196              	                                                   
+ 197 0000 0748     	   ldr r0, xVTORConst                              
+ 198 0002 0068     	   ldr r0, [r0]                                    
+ARM GAS  /tmp/ccOeALtC.s 			page 8
+
+
+ 199 0004 0068     	   ldr r0, [r0]                                    
+ 200 0006 80F30888 	   msr msp, r0                                     
+ 201 000a 62B6     	   cpsie i                                         
+ 202 000c 61B6     	   cpsie f                                         
+ 203 000e BFF34F8F 	   dsb                                             
+ 204 0012 BFF36F8F 	   isb                                             
+ 205 0016 66DF     	   svc #102                                          
+ 206 0018 00BF     	   nop                                             
+ 207              	                                                   
+ 208 001a 00BFAFF3 	   .align 4                                        
+ 208      0080
+ 209 0020 08ED00E0 	xVTORConst: .word 0xe000ed08                       
+ 210              	
+ 211              	@ 0 "" 2
+ 209:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     (
+ 210:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   .syntax unified                                 \n"
+ 211:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "                                                   \n"
+ 212:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   ldr r0, xVTORConst                              \n" /* Use the NVIC offset register to 
+ 213:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   ldr r0, [r0]                                    \n" /* Read the VTOR register which giv
+ 214:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   ldr r0, [r0]                                    \n" /* The first entry in vector table 
+ 215:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   msr msp, r0                                     \n" /* Set the MSP back to the start of
+ 216:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   cpsie i                                         \n" /* Globally enable interrupts. */
+ 217:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   cpsie f                                         \n"
+ 218:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   dsb                                             \n"
+ 219:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   isb                                             \n"
+ 220:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   svc %0                                          \n" /* System call to start the first t
+ 221:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   nop                                             \n"
+ 222:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "                                                   \n"
+ 223:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   .align 4                                        \n"
+ 224:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "xVTORConst: .word 0xe000ed08                       \n"
+ 225:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         ::"i" ( portSVC_START_SCHEDULER ) : "memory"
+ 226:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     );
+ 227:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** }
+ 212              		.loc 1 227 1 is_stmt 0 view .LVU14
+ 213              		.thumb
+ 214              		.syntax unified
+ 215              		.cfi_endproc
+ 216              	.LFE812:
+ 218              		.section	.text.ulSetInterruptMask,"ax",%progbits
+ 219              		.align	1
+ 220              		.p2align 2,,3
+ 221              		.global	ulSetInterruptMask
+ 222              		.syntax unified
+ 223              		.thumb
+ 224              		.thumb_func
+ 225              		.fpu fpv5-d16
+ 227              	ulSetInterruptMask:
+ 228              	.LFB813:
+ 228:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /*-----------------------------------------------------------*/
+ 229:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 230:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** uint32_t ulSetInterruptMask( void ) /* __attribute__(( naked )) PRIVILEGED_FUNCTION */
+ 231:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** {
+ 229              		.loc 1 231 1 is_stmt 1 view -0
+ 230              		.cfi_startproc
+ 231              		@ Naked Function: prologue and epilogue provided by programmer.
+ 232              		@ args = 0, pretend = 0, frame = 0
+ 233              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  /tmp/ccOeALtC.s 			page 9
+
+
+ 232:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     __asm volatile
+ 234              		.loc 1 232 5 view .LVU16
+ 235              		.syntax unified
+ 236              	@ 232 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c" 1
+ 237              		   .syntax unified                                 
+ 238              	                                                   
+ 239 0000 EFF31180 	   mrs r0, basepri                                 
+ 240 0004 4FF05001 	   mov r1, #80                                      
+ 241 0008 81F31188 	   msr basepri, r1                                 
+ 242 000c BFF34F8F 	   dsb                                             
+ 243 0010 BFF36F8F 	   isb                                             
+ 244 0014 7047     	   bx lr                                           
+ 245              	
+ 246              	@ 0 "" 2
+ 233:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     (
+ 234:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   .syntax unified                                 \n"
+ 235:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "                                                   \n"
+ 236:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   mrs r0, basepri                                 \n" /* r0 = basepri. Return original ba
+ 237:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   mov r1, %0                                      \n" /* r1 = configMAX_SYSCALL_INTERRUPT
+ 238:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   msr basepri, r1                                 \n" /* Disable interrupts upto configMA
+ 239:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   dsb                                             \n"
+ 240:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   isb                                             \n"
+ 241:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   bx lr                                           \n" /* Return. */
+ 242:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         ::"i" ( configMAX_SYSCALL_INTERRUPT_PRIORITY ) : "memory"
+ 243:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     );
+ 244:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** }
+ 247              		.loc 1 244 1 is_stmt 0 view .LVU17
+ 248              		.thumb
+ 249              		.syntax unified
+ 250              		.cfi_endproc
+ 251              	.LFE813:
+ 253 0016 00BF     		.section	.text.vClearInterruptMask,"ax",%progbits
+ 254              		.align	1
+ 255              		.p2align 2,,3
+ 256              		.global	vClearInterruptMask
+ 257              		.syntax unified
+ 258              		.thumb
+ 259              		.thumb_func
+ 260              		.fpu fpv5-d16
+ 262              	vClearInterruptMask:
+ 263              	.LVL0:
+ 264              	.LFB814:
+ 245:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /*-----------------------------------------------------------*/
+ 246:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 247:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** void vClearInterruptMask( __attribute__( ( unused ) ) uint32_t ulMask ) /* __attribute__(( naked ))
+ 248:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** {
+ 265              		.loc 1 248 1 is_stmt 1 view -0
+ 266              		.cfi_startproc
+ 267              		@ Naked Function: prologue and epilogue provided by programmer.
+ 268              		@ args = 0, pretend = 0, frame = 0
+ 269              		@ frame_needed = 0, uses_anonymous_args = 0
+ 249:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     __asm volatile
+ 270              		.loc 1 249 5 view .LVU19
+ 271              		.syntax unified
+ 272              	@ 249 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c" 1
+ 273              		   .syntax unified                                 
+ 274              	                                                   
+ARM GAS  /tmp/ccOeALtC.s 			page 10
+
+
+ 275 0000 80F31188 	   msr basepri, r0                                 
+ 276 0004 BFF34F8F 	   dsb                                             
+ 277 0008 BFF36F8F 	   isb                                             
+ 278 000c 7047     	   bx lr                                           
+ 279              	
+ 280              	@ 0 "" 2
+ 250:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     (
+ 251:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   .syntax unified                                 \n"
+ 252:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "                                                   \n"
+ 253:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   msr basepri, r0                                 \n" /* basepri = ulMask. */
+ 254:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   dsb                                             \n"
+ 255:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   isb                                             \n"
+ 256:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         "   bx lr                                           \n" /* Return. */
+ 257:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         ::: "memory"
+ 258:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     );
+ 259:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** }
+ 281              		.loc 1 259 1 is_stmt 0 view .LVU20
+ 282              		.thumb
+ 283              		.syntax unified
+ 284              		.cfi_endproc
+ 285              	.LFE814:
+ 287 000e 00BF     		.section	.text.PendSV_Handler,"ax",%progbits
+ 288              		.align	1
+ 289              		.p2align 2,,3
+ 290              		.global	PendSV_Handler
+ 291              		.syntax unified
+ 292              		.thumb
+ 293              		.thumb_func
+ 294              		.fpu fpv5-d16
+ 296              	PendSV_Handler:
+ 297              	.LFB815:
+ 260:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /*-----------------------------------------------------------*/
+ 261:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 262:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #if ( configENABLE_MPU == 1 )
+ 263:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 264:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     void PendSV_Handler( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
+ 265:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     {
+ 266:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         __asm volatile
+ 267:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         (
+ 268:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " .syntax unified                                 \n"
+ 269:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 270:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " ldr r2, pxCurrentTCBConst                       \n" /* Read the location of pxCurrent
+ 271:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " ldr r0, [r2]                                    \n" /* r0 = pxCurrentTCB. */
+ 272:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " ldr r1, [r0]                                    \n" /* r1 = Location in TCB where the
+ 273:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " mrs r2, psp                                     \n" /* r2 = PSP. */
+ 274:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 275:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " save_general_regs:                              \n"
+ 276:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #if ( ( configENABLE_FPU == 1 ) || ( configENABLE_MVE == 1 ) )
+ 277:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    add r2, r2, #0x20                            \n" /* Move r2 to location where s0 i
+ 278:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    tst lr, #0x10                                \n"
+ 279:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ittt eq                                      \n"
+ 280:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    vstmiaeq r1!, {s16-s31}                      \n" /* Store s16-s31. */
+ 281:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    vldmiaeq r2, {s0-s16}                        \n" /* Copy hardware saved FP context
+ 282:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    vstmiaeq r1!, {s0-s16}                       \n" /* Store hardware saved FP contex
+ 283:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    sub r2, r2, #0x20                            \n" /* Set r2 back to the location of
+ 284:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #endif /* configENABLE_FPU || configENABLE_MVE */
+ 285:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ARM GAS  /tmp/ccOeALtC.s 			page 11
+
+
+ 286:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r1!, {r4-r11}                          \n" /* Store r4-r11. */
+ 287:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmia r2, {r4-r11}                           \n" /* Copy the hardware saved contex
+ 288:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r1!, {r4-r11}                          \n" /* Store the hardware saved conte
+ 289:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 290:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " save_special_regs:                              \n"
+ 291:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    mrs r3, psplim                               \n" /* r3 = PSPLIM. */
+ 292:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    mrs r4, control                              \n" /* r4 = CONTROL. */
+ 293:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r1!, {r2-r4, lr}                       \n" /* Store original PSP (after hard
+ 294:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r1, [r0]                                 \n" /* Save the location from where t
+ 295:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 296:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " select_next_task:                               \n"
+ 297:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    mov r0, %0                                   \n" /* r0 = configMAX_SYSCALL_INTERRU
+ 298:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    msr basepri, r0                              \n" /* Disable interrupts upto config
+ 299:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    dsb                                          \n"
+ 300:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    isb                                          \n"
+ 301:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    bl vTaskSwitchContext                        \n"
+ 302:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    mov r0, #0                                   \n" /* r0 = 0. */
+ 303:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    msr basepri, r0                              \n" /* Enable interrupts. */
+ 304:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 305:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " program_mpu:                                    \n"
+ 306:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, pxCurrentTCBConst                    \n" /* Read the location of pxCurrent
+ 307:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r0, [r2]                                 \n" /* r0 = pxCurrentTCB. */
+ 308:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 309:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    dmb                                          \n" /* Complete outstanding transfers
+ 310:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r1, xMPUCTRLConst                        \n" /* r1 = 0xe000ed94 [Location of M
+ 311:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, [r1]                                 \n" /* Read the value of MPU_CTRL. */
+ 312:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    bic r2, #1                                   \n" /* r2 = r2 & ~1 i.e. Clear the bi
+ 313:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r2, [r1]                                 \n" /* Disable MPU. */
+ 314:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 315:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    adds r0, #4                                  \n" /* r0 = r0 + 4. r0 now points to 
+ 316:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r1, [r0]                                 \n" /* r1 = *r0 i.e. r1 = MAIR0. */
+ 317:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, xMAIR0Const                          \n" /* r2 = 0xe000edc0 [Location of M
+ 318:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r1, [r2]                                 \n" /* Program MAIR0. */
+ 319:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 320:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    adds r0, #4                                  \n" /* r0 = r0 + 4. r0 now points to 
+ 321:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r1, xRNRConst                            \n" /* r1 = 0xe000ed98 [Location of R
+ 322:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, xRBARConst                           \n" /* r2 = 0xe000ed9c [Location of R
+ 323:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 324:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    movs r3, #4                                  \n" /* r3 = 4. */
+ 325:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r3, [r1]                                 \n" /* Program RNR = 4. */
+ 326:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmia r0!, {r4-r11}                          \n" /* Read 4 sets of RBAR/RLAR regis
+ 327:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r2, {r4-r11}                           \n" /* Write 4 set of RBAR/RLAR regis
+ 328:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 329:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #if ( configTOTAL_MPU_REGIONS == 16 )
+ 330:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    movs r3, #8                                  \n" /* r3 = 8. */
+ 331:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r3, [r1]                                 \n" /* Program RNR = 8. */
+ 332:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmia r0!, {r4-r11}                          \n" /* Read 4 sets of RBAR/RLAR regis
+ 333:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r2, {r4-r11}                           \n" /* Write 4 set of RBAR/RLAR regis
+ 334:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    movs r3, #12                                 \n" /* r3 = 12. */
+ 335:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r3, [r1]                                 \n" /* Program RNR = 12. */
+ 336:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmia r0!, {r4-r11}                          \n" /* Read 4 sets of RBAR/RLAR regis
+ 337:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r2, {r4-r11}                           \n" /* Write 4 set of RBAR/RLAR regis
+ 338:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #endif /* configTOTAL_MPU_REGIONS == 16 */
+ 339:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 340:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r1, xMPUCTRLConst                         \n" /* r1 = 0xe000ed94 [Location of M
+ 341:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r2, [r1]                                  \n" /* Read the value of MPU_CTRL. */
+ 342:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   orr r2, #1                                    \n" /* r2 = r2 | 1 i.e. Set the bit 0
+ARM GAS  /tmp/ccOeALtC.s 			page 12
+
+
+ 343:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   str r2, [r1]                                  \n" /* Enable MPU. */
+ 344:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   dsb                                           \n" /* Force memory writes before con
+ 345:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 346:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " restore_context:                                \n"
+ 347:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r2, pxCurrentTCBConst                    \n" /* Read the location of pxCurrent
+ 348:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r0, [r2]                                 \n" /* r0 = pxCurrentTCB.*/
+ 349:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldr r1, [r0]                                 \n" /* r1 = Location of saved context
+ 350:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 351:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " restore_special_regs:                           \n"
+ 352:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmdb r1!, {r2-r4, lr}                       \n" /* r2 = original PSP, r3 = PSPLIM
+ 353:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    msr psp, r2                                  \n"
+ 354:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    msr psplim, r3                               \n"
+ 355:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    msr control, r4                              \n"
+ 356:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 357:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " restore_general_regs:                           \n"
+ 358:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmdb r1!, {r4-r11}                          \n" /* r4-r11 contain hardware saved 
+ 359:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    stmia r2!, {r4-r11}                          \n" /* Copy the hardware saved contex
+ 360:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ldmdb r1!, {r4-r11}                          \n" /* r4-r11 restored. */
+ 361:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #if ( ( configENABLE_FPU == 1 ) || ( configENABLE_MVE == 1 ) )
+ 362:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    tst lr, #0x10                                \n"
+ 363:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    ittt eq                                      \n"
+ 364:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    vldmdbeq r1!, {s0-s16}                       \n" /* s0-s16 contain hardware saved 
+ 365:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    vstmiaeq r2!, {s0-s16}                       \n" /* Copy hardware saved FP context
+ 366:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    vldmdbeq r1!, {s16-s31}                      \n" /* Restore s16-s31. */
+ 367:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #endif /* configENABLE_FPU || configENABLE_MVE */
+ 368:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 369:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " restore_context_done:                           \n"
+ 370:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    str r1, [r0]                                 \n" /* Save the location where the co
+ 371:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    bx lr                                        \n"
+ 372:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                 \n"
+ 373:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " .align 4                                        \n"
+ 374:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " pxCurrentTCBConst: .word pxCurrentTCB           \n"
+ 375:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " xMPUCTRLConst: .word 0xe000ed94                 \n"
+ 376:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " xMAIR0Const: .word 0xe000edc0                   \n"
+ 377:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " xRNRConst: .word 0xe000ed98                     \n"
+ 378:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             " xRBARConst: .word 0xe000ed9c                    \n"
+ 379:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             ::"i" ( configMAX_SYSCALL_INTERRUPT_PRIORITY )
+ 380:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         );
+ 381:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     }
+ 382:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 383:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #else /* configENABLE_MPU */
+ 384:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 385:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     void PendSV_Handler( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
+ 386:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     {
+ 298              		.loc 1 386 5 is_stmt 1 view -0
+ 299              		.cfi_startproc
+ 300              		@ Naked Function: prologue and epilogue provided by programmer.
+ 301              		@ args = 0, pretend = 0, frame = 0
+ 302              		@ frame_needed = 0, uses_anonymous_args = 0
+ 387:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         __asm volatile
+ 303              		.loc 1 387 9 view .LVU22
+ 304              		.syntax unified
+ 305              	@ 387 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c" 1
+ 306              		   .syntax unified                                 
+ 307              	                                                   
+ 308 0000 EFF30980 	   mrs r0, psp                                     
+ 309              	                                                   
+ARM GAS  /tmp/ccOeALtC.s 			page 13
+
+
+ 310 0004 1EF0100F 	   tst lr, #0x10                                   
+ 311 0008 08BF     	   it eq                                           
+ 312 000a 20ED108A 	   vstmdbeq r0!, {s16-s31}                         
+ 313              	                                                   
+ 314 000e EFF30B82 	   mrs r2, psplim                                  
+ 315 0012 7346     	   mov r3, lr                                      
+ 316 0014 20E9FC0F 	   stmdb r0!, {r2-r11}                             
+ 317              	                                                   
+ 318 0018 114A     	   ldr r2, pxCurrentTCBConst                       
+ 319 001a 1168     	   ldr r1, [r2]                                    
+ 320 001c 0860     	   str r0, [r1]                                    
+ 321              	                                                   
+ 322 001e 4FF05000 	   mov r0, #80                                      
+ 323 0022 80F31188 	   msr basepri, r0                                 
+ 324 0026 BFF34F8F 	   dsb                                             
+ 325 002a BFF36F8F 	   isb                                             
+ 326 002e FFF7FEFF 	   bl vTaskSwitchContext                           
+ 327 0032 4FF00000 	   mov r0, #0                                      
+ 328 0036 80F31188 	   msr basepri, r0                                 
+ 329              	                                                   
+ 330 003a 094A     	   ldr r2, pxCurrentTCBConst                       
+ 331 003c 1168     	   ldr r1, [r2]                                    
+ 332 003e 0868     	   ldr r0, [r1]                                    
+ 333              	                                                   
+ 334 0040 B0E8FC0F 	   ldmia r0!, {r2-r11}                             
+ 335              	                                                   
+ 336 0044 13F0100F 	   tst r3, #0x10                                   
+ 337 0048 08BF     	   it eq                                           
+ 338 004a B0EC108A 	   vldmiaeq r0!, {s16-s31}                         
+ 339              	                                                   
+ 340 004e 82F30B88 	   msr psplim, r2                                  
+ 341 0052 80F30988 	   msr psp, r0                                     
+ 342 0056 1847     	   bx r3                                           
+ 343              	                                                   
+ 344 0058 AFF30080 	   .align 4                                        
+ 344      AFF30080 
+ 345 0060 00000000 	pxCurrentTCBConst: .word pxCurrentTCB              
+ 346              	
+ 347              	@ 0 "" 2
+ 388:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         (
+ 389:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   .syntax unified                                 \n"
+ 390:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 391:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   mrs r0, psp                                     \n" /* Read PSP in r0. */
+ 392:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 393:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #if ( ( configENABLE_FPU == 1 ) || ( configENABLE_MVE == 1 ) )
+ 394:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   tst lr, #0x10                                   \n" /* Test Bit[4] in LR. Bit[4] of
+ 395:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   it eq                                           \n"
+ 396:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   vstmdbeq r0!, {s16-s31}                         \n" /* Store the additional FP cont
+ 397:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #endif /* configENABLE_FPU || configENABLE_MVE */
+ 398:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 399:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   mrs r2, psplim                                  \n" /* r2 = PSPLIM. */
+ 400:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   mov r3, lr                                      \n" /* r3 = LR/EXC_RETURN. */
+ 401:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   stmdb r0!, {r2-r11}                             \n" /* Store on the stack - PSPLIM,
+ 402:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 403:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r2, pxCurrentTCBConst                       \n" /* Read the location of pxCurre
+ 404:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r1, [r2]                                    \n" /* Read pxCurrentTCB. */
+ 405:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   str r0, [r1]                                    \n" /* Save the new top of stack in
+ARM GAS  /tmp/ccOeALtC.s 			page 14
+
+
+ 406:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 407:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   mov r0, %0                                      \n" /* r0 = configMAX_SYSCALL_INTER
+ 408:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   msr basepri, r0                                 \n" /* Disable interrupts upto conf
+ 409:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   dsb                                             \n"
+ 410:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   isb                                             \n"
+ 411:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   bl vTaskSwitchContext                           \n"
+ 412:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   mov r0, #0                                      \n" /* r0 = 0. */
+ 413:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   msr basepri, r0                                 \n" /* Enable interrupts. */
+ 414:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 415:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r2, pxCurrentTCBConst                       \n" /* Read the location of pxCurre
+ 416:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r1, [r2]                                    \n" /* Read pxCurrentTCB. */
+ 417:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r0, [r1]                                    \n" /* The first item in pxCurrentT
+ 418:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 419:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldmia r0!, {r2-r11}                             \n" /* Read from stack - r2 = PSPLI
+ 420:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 421:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #if ( ( configENABLE_FPU == 1 ) || ( configENABLE_MVE == 1 ) )
+ 422:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   tst r3, #0x10                                   \n" /* Test Bit[4] in LR. Bit[4] of
+ 423:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   it eq                                           \n"
+ 424:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   vldmiaeq r0!, {s16-s31}                         \n" /* Restore the additional FP co
+ 425:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         #endif /* configENABLE_FPU || configENABLE_MVE */
+ 426:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 427:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   msr psplim, r2                                  \n" /* Restore the PSPLIM register 
+ 428:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   msr psp, r0                                     \n" /* Remember the new top of stac
+ 429:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   bx r3                                           \n"
+ 430:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 431:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   .align 4                                        \n"
+ 432:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "pxCurrentTCBConst: .word pxCurrentTCB              \n"
+ 433:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             ::"i" ( configMAX_SYSCALL_INTERRUPT_PRIORITY )
+ 434:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         );
+ 435:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     }
+ 348              		.loc 1 435 5 is_stmt 0 view .LVU23
+ 349              		.thumb
+ 350              		.syntax unified
+ 351              		.cfi_endproc
+ 352              	.LFE815:
+ 354              		.section	.text.SVC_Handler,"ax",%progbits
+ 355              		.align	1
+ 356              		.p2align 2,,3
+ 357              		.global	SVC_Handler
+ 358              		.syntax unified
+ 359              		.thumb
+ 360              		.thumb_func
+ 361              		.fpu fpv5-d16
+ 363              	SVC_Handler:
+ 364              	.LFB816:
+ 436:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 437:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #endif /* configENABLE_MPU */
+ 438:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** /*-----------------------------------------------------------*/
+ 439:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 440:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #if ( ( configENABLE_MPU == 1 ) && ( configUSE_MPU_WRAPPERS_V1 == 0 ) )
+ 441:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 442:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     void SVC_Handler( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
+ 443:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     {
+ 444:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         __asm volatile
+ 445:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         (
+ 446:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             ".syntax unified                \n"
+ 447:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             ".extern vPortSVCHandler_C      \n"
+ARM GAS  /tmp/ccOeALtC.s 			page 15
+
+
+ 448:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             ".extern vSystemCallEnter       \n"
+ 449:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             ".extern vSystemCallExit        \n"
+ 450:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                               \n"
+ 451:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "tst lr, #4                     \n"
+ 452:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "ite eq                         \n"
+ 453:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "mrseq r0, msp                  \n"
+ 454:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "mrsne r0, psp                  \n"
+ 455:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                               \n"
+ 456:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "ldr r1, [r0, #24]              \n"
+ 457:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "ldrb r2, [r1, #-2]             \n"
+ 458:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "cmp r2, %0                     \n"
+ 459:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "blt syscall_enter              \n"
+ 460:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "cmp r2, %1                     \n"
+ 461:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "beq syscall_exit               \n"
+ 462:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "b vPortSVCHandler_C            \n"
+ 463:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                               \n"
+ 464:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "syscall_enter:                 \n"
+ 465:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    mov r1, lr                 \n"
+ 466:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    b vSystemCallEnter         \n"
+ 467:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                               \n"
+ 468:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "syscall_exit:                  \n"
+ 469:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    mov r1, lr                 \n"
+ 470:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "    b vSystemCallExit          \n"
+ 471:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                               \n"
+ 472:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             : /* No outputs. */
+ 473:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             : "i" ( NUM_SYSTEM_CALLS ), "i" ( portSVC_SYSTEM_CALL_EXIT )
+ 474:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             : "r0", "r1", "r2", "memory"
+ 475:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         );
+ 476:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     }
+ 477:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 478:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** #else /* ( configENABLE_MPU == 1 ) && ( configUSE_MPU_WRAPPERS_V1 == 0 ) */
+ 479:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c **** 
+ 480:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     void SVC_Handler( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
+ 481:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     {
+ 365              		.loc 1 481 5 is_stmt 1 view -0
+ 366              		.cfi_startproc
+ 367              		@ Naked Function: prologue and epilogue provided by programmer.
+ 368              		@ args = 0, pretend = 0, frame = 0
+ 369              		@ frame_needed = 0, uses_anonymous_args = 0
+ 482:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         __asm volatile
+ 370              		.loc 1 482 9 view .LVU25
+ 371              		.syntax unified
+ 372              	@ 482 "Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c" 1
+ 373              		   .syntax unified                                 
+ 374              	                                                   
+ 375 0000 1EF0040F 	   tst lr, #4                                      
+ 376 0004 0CBF     	   ite eq                                          
+ 377 0006 EFF30880 	   mrseq r0, msp                                   
+ 378 000a EFF30980 	   mrsne r0, psp                                   
+ 379 000e 0449     	   ldr r1, svchandler_address_const                
+ 380 0010 0847     	   bx r1                                           
+ 381              	                                                   
+ 382 0012 00BFAFF3 	   .align 4                                        
+ 382      0080AFF3 
+ 382      0080AFF3 
+ 382      0080
+ 383 0020 00000000 	svchandler_address_const: .word vPortSVCHandler_C  
+ARM GAS  /tmp/ccOeALtC.s 			page 16
+
+
+ 384              	
+ 385              	@ 0 "" 2
+ 483:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         (
+ 484:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   .syntax unified                                 \n"
+ 485:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 486:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   tst lr, #4                                      \n"
+ 487:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ite eq                                          \n"
+ 488:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   mrseq r0, msp                                   \n"
+ 489:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   mrsne r0, psp                                   \n"
+ 490:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   ldr r1, svchandler_address_const                \n"
+ 491:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   bx r1                                           \n"
+ 492:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "                                                   \n"
+ 493:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "   .align 4                                        \n"
+ 494:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****             "svchandler_address_const: .word vPortSVCHandler_C  \n"
+ 495:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****         );
+ 496:Middlewares/FreeRTOS/portable/GCC/ARM_CM55_NTZ/non_secure/portasm.c ****     }
+ 386              		.loc 1 496 5 is_stmt 0 view .LVU26
+ 387              		.thumb
+ 388              		.syntax unified
+ 389              		.cfi_endproc
+ 390              	.LFE816:
+ 392              		.text
+ 393              	.Letext0:
+ 394              		.file 2 "/usr/lib/gcc/arm-none-eabi/10.3.1/include/stdint.h"
+ 395              		.file 3 "Core/Inc/portmacrocommon.h"
+ARM GAS  /tmp/ccOeALtC.s 			page 17
+
+
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 portasm.c
+     /tmp/ccOeALtC.s:22     .text.vRestoreContextOfFirstTask:0000000000000000 $t
+     /tmp/ccOeALtC.s:35     .text.vRestoreContextOfFirstTask:0000000000000000 vRestoreContextOfFirstTask
+     /tmp/ccOeALtC.s:64     .text.vRestoreContextOfFirstTask:0000000000000030 pxCurrentTCBConst2
+     /tmp/ccOeALtC.s:64     .text.vRestoreContextOfFirstTask:0000000000000030 $d
+     /tmp/ccOeALtC.s:74     .text.xIsPrivileged:0000000000000000 $t
+     /tmp/ccOeALtC.s:82     .text.xIsPrivileged:0000000000000000 xIsPrivileged
+     /tmp/ccOeALtC.s:111    .text.vRaisePrivilege:0000000000000000 $t
+     /tmp/ccOeALtC.s:119    .text.vRaisePrivilege:0000000000000000 vRaisePrivilege
+     /tmp/ccOeALtC.s:144    .text.vResetPrivilege:0000000000000000 $t
+     /tmp/ccOeALtC.s:152    .text.vResetPrivilege:0000000000000000 vResetPrivilege
+     /tmp/ccOeALtC.s:177    .text.vStartFirstTask:0000000000000000 $t
+     /tmp/ccOeALtC.s:185    .text.vStartFirstTask:0000000000000000 vStartFirstTask
+     /tmp/ccOeALtC.s:209    .text.vStartFirstTask:0000000000000020 xVTORConst
+     /tmp/ccOeALtC.s:209    .text.vStartFirstTask:0000000000000020 $d
+     /tmp/ccOeALtC.s:219    .text.ulSetInterruptMask:0000000000000000 $t
+     /tmp/ccOeALtC.s:227    .text.ulSetInterruptMask:0000000000000000 ulSetInterruptMask
+     /tmp/ccOeALtC.s:254    .text.vClearInterruptMask:0000000000000000 $t
+     /tmp/ccOeALtC.s:262    .text.vClearInterruptMask:0000000000000000 vClearInterruptMask
+     /tmp/ccOeALtC.s:288    .text.PendSV_Handler:0000000000000000 $t
+     /tmp/ccOeALtC.s:296    .text.PendSV_Handler:0000000000000000 PendSV_Handler
+     /tmp/ccOeALtC.s:345    .text.PendSV_Handler:0000000000000060 pxCurrentTCBConst
+     /tmp/ccOeALtC.s:345    .text.PendSV_Handler:0000000000000060 $d
+     /tmp/ccOeALtC.s:355    .text.SVC_Handler:0000000000000000 $t
+     /tmp/ccOeALtC.s:363    .text.SVC_Handler:0000000000000000 SVC_Handler
+     /tmp/ccOeALtC.s:383    .text.SVC_Handler:0000000000000020 svchandler_address_const
+     /tmp/ccOeALtC.s:383    .text.SVC_Handler:0000000000000020 $d
+
+UNDEFINED SYMBOLS
+pxCurrentTCB
+vTaskSwitchContext
+vPortSVCHandler_C
