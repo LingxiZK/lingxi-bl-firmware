@@ -21,6 +21,8 @@
 #include "app_npu.h"
 #include "app_fusion.h"
 #include "app_control.h"
+#include "app_camera.h"
+#include "app_stream.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -65,7 +67,9 @@ static void mutexes_init(void);
 
 /**
  * @brief  摄像头采集任务
- * @note   最高优先级, 周期性从 MIPI CSI-2 获取帧
+ * @note   最高优先级, 从 MIPI CSI-2 获取帧, 同时转发到:
+ *         1) NPU 推理队列 (vTaskInference 消费)
+ *         2) app_stream_send_frame → SDIO → ESP32 → Wi-Fi → 地面站
  */
 void vTaskCamera(void *pvParameters)
 {
@@ -77,26 +81,70 @@ void vTaskCamera(void *pvParameters)
     xEventGroupWaitBits(g_system_event_group, EVT_SYS_INIT_DONE,
                         pdFALSE, pdTRUE, portMAX_DELAY);
 
-    /* 启动摄像头 */
-    bsp_mipi_csi_start();
+    /* 初始化相机应用层: 320x240@30fps (降采样后) */
+    if (app_camera_init(APP_CAM_OUT_W, APP_CAM_OUT_H, APP_CAM_MAX_FPS)
+        != LINGXI_OK) {
+        LX_ERROR_PRINT("app_camera_init failed");
+        while (1) { taskYIELD(); }
+    }
+
+    /* 初始化图像流传输层 */
+    app_stream_init();
+
+    /* 启动相机 */
+    if (app_camera_start() != LINGXI_OK) {
+        LX_ERROR_PRINT("app_camera_start failed");
+        while (1) { taskYIELD(); }
+    }
 
     uint32_t last_wake_time = xTaskGetTickCount();
 
     for (;;) {
-        /* 周期性延迟 */
+        /* 周期性延迟 (16ms = 60fps 传感器帧率) */
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(TASK_PERIOD_CAMERA));
 
-        /* 获取帧 */
-        uint8_t *frame = bsp_mipi_csi_get_frame();
-        if (frame == NULL) {
-            continue; /* 超时或错误 */
+        /* 获取并处理帧 (下采样 + 回调) */
+        uint8_t *raw_frame = bsp_mipi_csi_get_frame();
+        if (raw_frame == NULL) {
+            continue;
         }
 
-        /* 发送到推理队列 */
-        if (xQueueSend(s_queue_cam_frames, &frame, 0) != pdTRUE) {
-            /* 队列满, 释放帧 */
-            bsp_mipi_csi_release_frame(frame);
+        /* 拷贝一份给推理队列 (下采样前的全分辨率帧) */
+        if (xQueueSend(s_queue_cam_frames, &raw_frame, 0) != pdTRUE) {
+            /* 队列满, 跳过推理 */
         }
+
+        /* 降采样 + 通过 app_stream 发送到地面站 */
+        /* 复用已有的 downscale buffer */
+        static uint8_t downscale_buf[APP_CAM_OUT_SIZE] __attribute__((aligned(32)));
+        {
+            /* 简单 2x2 平均下采样 */
+            const uint16_t src_w = APP_CAM_FULL_W;
+            const uint16_t dst_w = APP_CAM_OUT_W;
+            const uint16_t dst_h = APP_CAM_OUT_H;
+            for (uint16_t y = 0; y < dst_h; y++) {
+                for (uint16_t x = 0; x < dst_w; x++) {
+                    const uint16_t sx = x << 1;
+                    const uint16_t sy = y << 1;
+                    uint32_t sum = 0;
+                    sum += raw_frame[sy * src_w + sx];
+                    sum += raw_frame[sy * src_w + sx + 1];
+                    sum += raw_frame[(sy + 1) * src_w + sx];
+                    sum += raw_frame[(sy + 1) * src_w + sx + 1];
+                    downscale_buf[y * dst_w + x] = (uint8_t)(sum >> 2);
+                }
+            }
+        }
+
+        /* 释放 BSP 帧缓冲区 (推理任务会另外获取) */
+        bsp_mipi_csi_release_frame(raw_frame);
+
+        /* 发送到地面站 (非阻塞, 通过流传输层分片发送) */
+        uint64_t ts = (uint64_t)(DWT->CYCCNT / (SystemCoreClock / 1000000));
+        app_stream_send_frame(downscale_buf, APP_CAM_OUT_SIZE,
+                               APP_CAM_OUT_W, APP_CAM_OUT_H,
+                               0, /* RAW8 */
+                               ts);
     }
 }
 

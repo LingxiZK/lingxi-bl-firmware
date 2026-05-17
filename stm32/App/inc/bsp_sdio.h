@@ -50,6 +50,8 @@ typedef enum {
     SDIO_PKT_HEART  = 0x05,     /* 心跳包 */
     SDIO_PKT_CTRL_CMD = 0x06,  /* 控制指令包 (vTaskControl -> ESP32) */
     SDIO_PKT_LOG    = 0x07,    /* 日志/诊断包 (vTaskLogger/vTaskDiag -> ESP32) */
+    SDIO_PKT_IMAGE_FRAME   = 0x08,    /* 图像帧数据 (vTaskCamera -> ESP32 -> Wi-Fi -> 地面站) */
+    SDIO_PKT_IMAGE_REQ    = 0x09,    /* 图像帧请求 (地面站 -> ESP32 -> STM32N6, 触发拍照) */
 } sdio_pkt_type_t;
 
 typedef struct __attribute__((packed)) {

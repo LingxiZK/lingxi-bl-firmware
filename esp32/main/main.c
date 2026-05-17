@@ -17,6 +17,7 @@
 #include "esp_ble_mesh.h"
 #include "driver/sdio_slave.h"
 #include "lingxi_protocol.h"
+#include "wifi_stream.h"
 
 #define TAG "LX_ESP32"
 
@@ -195,6 +196,11 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
 
     s_wifi_event_group = xEventGroupCreate();
+
+    /* 初始化 Wi-Fi 流转发 (图像帧 → UDP 地面站) */
+    ESP_ERROR_CHECK(wifi_stream_init());
+    /* TODO: 通过配置或 DHCP 发现获取地面站 IP */
+    wifi_stream_set_target("192.168.1.100", WIFI_STREAM_UDP_PORT);
 
     /* 创建任务 */
     xTaskCreate(vTaskSDIO, "SDIO", 4096, NULL, 4, &xTaskSDIOHandle);

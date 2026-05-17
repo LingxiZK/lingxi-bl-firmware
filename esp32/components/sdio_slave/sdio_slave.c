@@ -8,6 +8,13 @@
 
 #define TAG "SDIO_SLAVE"
 
+/* 图像帧转发 */
+#include "wifi_stream.h"
+
+/* STM32N6 SDIO 包格式 (用于图像帧检测) */
+#define SDIO_PKT_MAGIC      0xA5
+#define SDIO_PKT_IMAGE_FRAME 0x08   /* 匹配 STM32N6 的 sdio_packet_t.type */
+
 /* SDIO 发送/接收缓冲区 */
 static uint8_t s_tx_buffer[SDIO_SLAVE_BUF_COUNT][SDIO_SLAVE_BLOCK_SIZE];
 static uint8_t s_rx_buffer[SDIO_SLAVE_BUF_COUNT][SDIO_SLAVE_BLOCK_SIZE];
@@ -81,6 +88,26 @@ static void sdio_rx_task(void *arg)
             continue;
         }
 
+        /* 读取原始数据用于检测 */
+        uint8_t raw_buf[LX_FRAME_MAX_LEN];
+        size_t raw_len = (len < sizeof(raw_buf)) ? len : sizeof(raw_buf);
+        sdio_slave_recv_copy(buf_handle, raw_buf, raw_len, NULL, portMAX_DELAY);
+
+        /* ── 检测图像帧分片 (STM32N6 sdio_packet_t 格式) ── */
+        if (raw_len >= 3 && raw_buf[0] == SDIO_PKT_MAGIC &&
+            raw_buf[1] == SDIO_PKT_IMAGE_FRAME) {
+            /* 转发到 Wi-Fi 流 (原始数据作为分片) */
+            wifi_stream_forward_fragment(raw_buf, (uint16_t)raw_len, false);
+            sdio_slave_recv_load_buf(buf_handle);
+            xSemaphoreTake(s_stats_mutex, portMAX_DELAY);
+            s_stats.rx_frames++;
+            s_stats.rx_bytes += raw_len;
+            xSemaphoreGive(s_stats_mutex);
+            ESP_LOGD(TAG, "Image frag forwarded, len=%d", raw_len);
+            continue;
+        }
+
+        /* ── 普通帧 → lx_frame_t 解析 ── */
         ret = sdio_slave_recv_copy(buf_handle, &frame, len, NULL, portMAX_DELAY);
         sdio_slave_recv_load_buf(buf_handle);
 
