@@ -1,5 +1,7 @@
 # 灵犀智空 Lingxi BL 感知模组 — 固件工程
 
+> **官方网站**: [www.lingxizk.com](https://www.lingxizk.com) — 灵犀智空无人机集群智能控制系统
+
 > **当前版本: v4.0** | 2026-05-17
 
 ## 工程概述
